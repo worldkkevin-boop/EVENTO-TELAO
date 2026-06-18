@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Receptor - Telão Externo</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <video id="remoteVideo" autoplay playsinline></video>
+
+    <script>
+        let peerConnection;
+        const socket = io();
+        const videoElement = document.getElementById('remoteVideo');
+        const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        socket.on('offer', (id, description) => {
+            peerConnection = new RTCPeerConnection(config);
+            peerConnection.setRemoteDescription(description)
+                .then(() => peerConnection.createAnswer())
+                .then(sdp => peerConnection.setLocalDescription(sdp))
+                .then(() => {
+                    socket.emit('answer', id, peerConnection.localDescription);
+                });
+
+            peerConnection.ontrack = event => {
+                videoElement.srcObject = event.streams[0];
+            };
+
+            peerConnection.onicecandidate = event => {
+                if (event.candidate) {
+                    socket.emit('candidate', id, event.candidate);
+                }
+            };
+        });
+
+        socket.on('candidate', (id, candidate) => {
+            peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        });
+
+        socket.on('connect', () => {
+            socket.emit('watcher');
+        });
+
+        socket.on('disconnectBroadcaster', () => {
+            if (peerConnection) peerConnection.close();
+            videoElement.srcObject = null;
+        });
+    </script>
+</body>
+</html>

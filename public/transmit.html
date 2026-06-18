@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Transmissor - Tela Interna</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <h1>Transmitindo ao Vivo (Tela Interna)</h1>
+    <video id="localVideo" autoplay playsinline muted></video>
+
+    <script>
+        const socket = io();
+        const videoElement = document.getElementById('localVideo');
+        const peerConnections = {};
+
+        const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                videoElement.srcObject = stream;
+                socket.emit('broadcaster');
+
+                socket.on('watcher', id => {
+                    const peerConnection = new RTCPeerConnection(config);
+                    peerConnections[id] = peerConnection;
+
+                    stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+                    peerConnection.onicecandidate = event => {
+                        if (event.candidate) {
+                            socket.emit('candidate', id, event.candidate);
+                        }
+                    };
+
+                    peerConnection.createOffer()
+                        .then(sdp => peerConnection.setLocalDescription(sdp))
+                        .then(() => {
+                            socket.emit('offer', id, peerConnection.localDescription);
+                        });
+                });
+
+                socket.on('answer', (id, description) => {
+                    peerConnections[id].setRemoteDescription(description);
+                });
+
+                socket.on('candidate', (id, candidate) => {
+                    peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate));
+                });
+            }).catch(error => console.error('Erro ao acessar câmera:', error));
+    </script>
+</body>
+</html>
