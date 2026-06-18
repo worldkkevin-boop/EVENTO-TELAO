@@ -173,6 +173,8 @@
         });
         socket.on('candidate', (id, candidate) => { peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); });
         socket.on('connect', () => { socket.emit('watcher', myTelaoId); });
+        // Quando um transmissor (re)aparece, pede a imagem de novo — evita ficar preto após restart
+        socket.on('broadcaster', () => { socket.emit('watcher', myTelaoId); });
         socket.on('disconnectBroadcaster', () => { if (peerConnection) peerConnection.close(); videoElement.srcObject = null; videoElement.style.opacity = '0'; });
     </script>
 </body>

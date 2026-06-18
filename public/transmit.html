@@ -297,11 +297,14 @@
             };
         }
 
-        // Inicia a câmera automaticamente (garante uma fonte/sender e evita telão preto)
+        // Anuncia que é o transmissor SEMPRE que (re)conectar — sobrevive a restart do servidor
+        socket.on('connect', () => socket.emit('broadcaster'));
+
+        // Inicia a câmera automaticamente (garante uma fonte/sender e evita telão preto).
+        // Ao ficar pronta, reanuncia para os telões pedirem a imagem de novo (já com a fonte ativa).
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then(updateStream)
-            .catch(err => { console.error(err); alert('Câmera indisponível — escolha uma fonte (Tela/Vídeo).'); })
-            .finally(() => socket.emit('broadcaster'));
+            .then(stream => { updateStream(stream); socket.emit('broadcaster'); })
+            .catch(err => { console.error(err); alert('Câmera indisponível — escolha uma fonte (Tela/Vídeo).'); });
 
         socket.on('watcher', (id, telaoId) => {
             const peerConnection = new RTCPeerConnection(config);
