@@ -2,20 +2,24 @@
  * SERVIDOR DE PRESENÇA NA NUVEM — Google Apps Script
  * --------------------------------------------------
  * - Serve a página do QR Code (formulário) em doGet.
- * - Grava nome + WhatsApp no Google Sheets (registrarPresenca).
+ * - Grava Evento + Nome + WhatsApp no Google Sheets (registrarPresenca).
  * - Devolve o total em JSON em ?action=count (lido pelo seu notebook).
  *
- * Como usar: veja PASSO-A-PASSO.md (deploy como Web App, acesso "Qualquer pessoa").
+ * NOME DO EVENTO:
+ *   - Edite EVENTO_PADRAO abaixo (jeito mais simples), OU
+ *   - Passe na URL do QR: .../exec?evento=Nome%20do%20Evento
+ *   Cada presença é gravada com esse nome, pra identificar a lista depois.
  */
 
 const SHEET_NAME = 'Presencas';
+const EVENTO_PADRAO = 'Plenária União Brasil - Laranjal do Jari';
 
 function getSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow(['Nome', 'WhatsApp', 'Hora']);
+    sheet.appendRow(['Evento', 'Nome', 'WhatsApp', 'Hora']);
   }
   return sheet;
 }
@@ -32,18 +36,21 @@ function doGet(e) {
       .createTextOutput(JSON.stringify({ total: totalPresencas() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
-  return HtmlService.createHtmlOutputFromFile('index')
+  const tmpl = HtmlService.createTemplateFromFile('index');
+  tmpl.evento = (e && e.parameter && e.parameter.evento) ? e.parameter.evento : EVENTO_PADRAO;
+  return tmpl.evaluate()
     .setTitle('Confirme sua Presença - União Brasil')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 }
 
 // Chamada pelo formulário (google.script.run). Grava e devolve o novo total.
-function registrarPresenca(nome, whatsapp) {
+function registrarPresenca(nome, whatsapp, evento) {
   nome = String(nome || '').trim();
   whatsapp = String(whatsapp || '').trim();
+  evento = String(evento || EVENTO_PADRAO).trim();
   if (!nome || !whatsapp) {
     throw new Error('Preencha nome e WhatsApp.');
   }
-  getSheet().appendRow([nome, whatsapp, new Date()]);
+  getSheet().appendRow([evento, nome, whatsapp, new Date()]);
   return totalPresencas();
 }

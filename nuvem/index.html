@@ -21,7 +21,8 @@
 
     <div class="container" id="form-container">
         <h1>União Brasil</h1>
-        <p>Plenária Municipal - Confirme sua Presença</p>
+        <p id="subtitulo">Confirme sua Presença</p>
+        <input type="hidden" id="evento" value="<?= evento ?>">
 
         <input type="text" id="nome" placeholder="Seu Nome Completo" required>
         <input type="tel" id="whatsapp" placeholder="Seu WhatsApp (com DDD)" required>
@@ -36,6 +37,9 @@
     </div>
 
     <script>
+        const EVENTO = document.getElementById('evento').value;
+        if (EVENTO) document.getElementById('subtitulo').innerText = EVENTO;
+
         // Já confirmou neste aparelho?
         if (localStorage.getItem('presencaConfirmada')) {
             document.getElementById('form-container').style.display = 'none';
@@ -65,7 +69,7 @@
                     btn.disabled = false;
                     btn.innerText = 'Confirmar Presença';
                 })
-                .registrarPresenca(nome, whatsapp);
+                .registrarPresenca(nome, whatsapp, EVENTO);
         }
     </script>
 </body>

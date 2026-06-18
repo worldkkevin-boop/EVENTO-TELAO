@@ -50,6 +50,22 @@ Sem a variável `PRESENCA_URL`, o sistema continua funcionando com o contador lo
 - Veja a linha aparecer na planilha do Google.
 - Com o telão ligado e `PRESENCA_URL` configurada, o número sobe em até 5s.
 
+## Nome do evento (identificar a lista depois)
+Cada presença é gravada com o nome do evento numa coluna "Evento". Você define
+de duas formas:
+
+1. **Mais simples:** no `Codigo.gs`, edite a linha
+   `const EVENTO_PADRAO = 'Plenária União Brasil - Laranjal do Jari';`
+   com o nome do evento atual e reimplante (Implantar → Gerenciar → editar → Nova versão).
+
+2. **Sem reimplantar (por QR):** aponte o QR para a URL com o parâmetro `evento`, ex:
+   `https://script.google.com/macros/s/SEU_ID/exec?evento=Plenaria%20Laranjal%20do%20Jari`
+   (use %20 no lugar de espaços). Assim dá pra ter vários eventos na mesma planilha.
+
+> IMPORTANTE: como agora existe a coluna "Evento", se você JÁ tinha criado a aba
+> "Presencas" antes, apague essa aba (ou as linhas de teste) — o script recria o
+> cabeçalho certo: Evento | Nome | WhatsApp | Hora.
+
 ## Dica
-- Os leads ficam na planilha do Google (nome, WhatsApp, hora) — é só exportar
-  depois (Arquivo → Fazer download → CSV).
+- Os leads ficam na planilha do Google (Evento, Nome, WhatsApp, Hora) — é só
+  exportar depois (Arquivo → Fazer download → CSV) e filtrar pela coluna Evento.
