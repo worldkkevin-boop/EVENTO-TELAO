@@ -8,25 +8,62 @@
         * { box-sizing: border-box; }
         html, body { height: 100%; margin: 0; overflow: hidden; }
         body { display: flex; background: #121212; color: #fff; font-family: 'Segoe UI', sans-serif; }
-        #sidebar { width: 380px; flex-shrink: 0; background: #222; padding: 20px; display: flex; flex-direction: column; gap: 15px; height: 100vh; overflow-y: auto; border-right: 2px solid #333; }
+        #sidebar { width: 400px; flex-shrink: 0; background: #222; padding: 20px; display: flex; flex-direction: column; gap: 15px; height: 100vh; overflow-y: auto; border-right: 2px solid #333; }
         #sidebar h2 { margin: 0; }
         #main-preview { flex: 1; min-width: 0; height: 100vh; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
         #main-preview h2 { margin: 0; text-align: center; }
+
+        /* Container da Prévia com o GC Local */
         .preview-container { width: 100%; max-width: 800px; border: 2px solid #555; background: #000; position: relative; border-radius: 8px; overflow: hidden; }
         #localVideo { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: cover; }
+
+        /* Estilo do GC na Prévia (menor que o do telão) */
+        #local-overlay {
+            position: absolute;
+            bottom: 8%;
+            left: 5%;
+            background: linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(20,20,20,0.8) 100%);
+            color: #fff;
+            padding: 8px 15px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            border-left: 8px solid #0078d4;
+            border-radius: 4px 10px 10px 4px;
+            z-index: 10;
+            display: none; /* Começa invisível */
+            white-space: nowrap;
+        }
+
         .control-group { background: #2d2d2d; padding: 15px; border-radius: 8px; }
         h3 { margin: 0 0 10px 0; font-size: 1rem; color: #4DA8DA; border-bottom: 1px solid #444; padding-bottom: 5px; }
-        button { background: #0078d4; color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 6px; transition: .15s; }
+
+        button { background: #0078d4; color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 6px; transition: 0.2s; }
         button:hover { background: #005a9e; }
+
+        /* Cores específicas de botões */
         .btn-danger { background: #d83b01; }
-        .btn-danger:hover { background: #b83201; }
+        .btn-danger:hover { background: #a62d01; }
         .btn-success { background: #107c41; }
-        .btn-success:hover { background: #0b5930; }
+        .btn-success:hover { background: #0a522a; }
+        .btn-live { background: #e81123; font-size: 1.1rem; padding: 12px; margin-top: 15px; border: 2px solid #ff4d4d; box-shadow: 0 0 10px rgba(232, 17, 35, 0.4); }
+        .btn-live:hover { background: #b30d1a; }
+
         .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
         .grid-3 button { margin-top: 0; }
-        .politician-list button { background: #444; text-align: left; padding: 8px 10px; margin-top: 4px; }
-        .politician-list button:hover { background: #666; }
+
+        /* Layout da lista dinâmica */
+        .name-row { display: flex; gap: 5px; margin-top: 5px; }
+        .name-row button.select-btn { background: #444; flex: 1; text-align: left; padding: 8px 10px; margin-top: 0; }
+        .name-row button.select-btn:hover { background: #666; border-left: 4px solid #0078d4; }
+        .name-row button.del-btn { width: 40px; margin: 0; background: #555; }
+        .name-row button.del-btn:hover { background: #d83b01; }
+
         input, select { width: 100%; padding: 8px; box-sizing: border-box; background: #111; color: #fff; border: 1px solid #555; border-radius: 4px; margin-bottom: 5px; }
+        #linkHint { font-size: .75rem; color: #aaa; margin: 6px 0 0; }
+        .input-group { display: flex; gap: 5px; }
+        .input-group input { margin-bottom: 0; }
+        .input-group button { width: auto; margin-top: 0; padding: 0 15px; }
+
         #sidebar::-webkit-scrollbar, #main-preview::-webkit-scrollbar { width: 9px; }
         #sidebar::-webkit-scrollbar-thumb, #main-preview::-webkit-scrollbar-thumb { background: #555; border-radius: 5px; }
         @media (max-width: 860px) {
@@ -47,6 +84,7 @@
             <button class="btn-success" onclick="copyLink('1')">Copiar Link Telão 1 (Principal)</button>
             <button class="btn-success" onclick="copyLink('2')">Copiar Link Telão 2 (Apoio)</button>
             <button class="btn-success" onclick="copyLink('3')">Copiar Link Telão 3 (Rua)</button>
+            <p id="linkHint">Manda cada link pro notebook do telão correspondente.</p>
         </div>
 
         <div class="control-group">
@@ -58,7 +96,7 @@
         </div>
 
         <div class="control-group">
-            <h3>🔀 Mandar Preview Para:</h3>
+            <h3>🔀 Mandar Vídeo Para:</h3>
             <div class="grid-3">
                 <button onclick="changeScene('camera', '1')">T1</button>
                 <button onclick="changeScene('camera', '2')">T2</button>
@@ -69,28 +107,31 @@
         </div>
 
         <div class="control-group">
-            <h3>👤 Nomes (GC/Letreiro)</h3>
+            <h3>👥 Lista da Comitiva</h3>
+            <div class="input-group">
+                <input type="text" id="newNameInput" placeholder="Ex: José - Governador">
+                <button class="btn-success" onclick="addNameToList()">➕ Add</button>
+            </div>
+            <div id="dynamic-names-list" style="margin-top: 10px; max-height: 240px; overflow-y: auto;"></div>
+        </div>
+
+        <div class="control-group">
+            <h3>📡 Transmissão do Letreiro (GC)</h3>
             <select id="targetTelaoGC">
-                <option value="todos">Mostrar em Todos</option>
-                <option value="1">Só Telão 1</option>
-                <option value="2">Só Telão 2</option>
+                <option value="todos">Mostrar em Todos os Telões</option>
+                <option value="1">Só Telão 1 (Principal)</option>
+                <option value="2">Só Telão 2 (Apoio)</option>
                 <option value="3">Só Telão 3 (Rua)</option>
             </select>
-
-            <div class="politician-list">
-                <button onclick="sendOverlay('João Silva - Prefeito')">João Silva - Prefeito</button>
-                <button onclick="sendOverlay('Alliny Serrão - Deputada')">Alliny Serrão - Deputada</button>
-                <button onclick="sendOverlay('Carlos Mendes - Vereador')">Carlos Mendes - Vereador</button>
-            </div>
-            <input type="text" id="customName" placeholder="Ou digite um nome na hora..." style="margin-top: 10px;">
-            <button onclick="sendOverlay(document.getElementById('customName').value)">Enviar Nome Digitado</button>
-            <button class="btn-danger" onclick="clearOverlay()">❌ Tirar Nome da Tela</button>
+            <button class="btn-live" onclick="pushToLive()">🔴 COLOCAR NO AR (TRANSMITIR)</button>
+            <button class="btn-danger" style="padding: 12px; font-size: 1.1rem; margin-top: 10px;" onclick="killOverlay()">❌ TIRAR DO AR (IMEDIATO)</button>
         </div>
     </div>
 
     <div id="main-preview">
-        <h2>Monitor Local (O que vai ser enviado)</h2>
+        <h2>Monitor Local (Pré-visualização)</h2>
         <div class="preview-container">
+            <div id="local-overlay">Nome de Teste</div>
             <video id="localVideo" autoplay playsinline muted></video>
         </div>
     </div>
@@ -98,13 +139,14 @@
     <script>
         const socket = io();
         const videoElement = document.getElementById('localVideo');
-        const peerConnections = {};
+        const localOverlay = document.getElementById('local-overlay');
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
         let currentStream = null;
+        let peerConnections = {};
         let fileVideoElement = null;
 
-        // Link inteligente: usa o IP da rede quando local (pros outros notebooks),
-        // e o dominio quando hospedado em VPS.
+        // --- LINKS PARA OS NOTEBOOKS ---
+        // Usa o IP da rede quando local (pros outros PCs) e o domínio quando em VPS.
         async function copyLink(telaoId) {
             let base = location.origin;
             if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
@@ -119,7 +161,82 @@
                 .catch(() => prompt('Copie o link do Telão ' + telaoId + ':', url));
         }
 
-        // Troca a fonte de TODOS os teloes sem derrubar a conexao (video + audio)
+        // --- SISTEMA DE LISTA DE NOMES (salvo no navegador) ---
+        const STORE_KEY = 'comitiva-nomes';
+        let savedNames = JSON.parse(localStorage.getItem(STORE_KEY) || 'null') || ["Alliny Serrão - Deputada"];
+        let currentPreviewText = ""; // O que está engatilhado na prévia
+
+        function persistNames() { localStorage.setItem(STORE_KEY, JSON.stringify(savedNames)); }
+
+        function renderNames() {
+            const listDiv = document.getElementById('dynamic-names-list');
+            listDiv.innerHTML = "";
+            savedNames.forEach((name, index) => {
+                const row = document.createElement('div');
+                row.className = 'name-row';
+
+                const selectBtn = document.createElement('button');
+                selectBtn.className = 'select-btn';
+                selectBtn.innerText = name;
+                selectBtn.onclick = () => loadToPreview(name);
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'del-btn';
+                delBtn.innerHTML = '🗑️';
+                delBtn.onclick = () => {
+                    savedNames.splice(index, 1);
+                    persistNames();
+                    renderNames();
+                };
+
+                row.appendChild(selectBtn);
+                row.appendChild(delBtn);
+                listDiv.appendChild(row);
+            });
+        }
+
+        function addNameToList() {
+            const input = document.getElementById('newNameInput');
+            const newName = input.value.trim();
+            if (newName !== "") {
+                savedNames.push(newName);
+                persistNames();
+                input.value = "";
+                renderNames();
+            }
+        }
+
+        // Enter no campo adiciona rápido
+        document.getElementById('newNameInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') addNameToList();
+        });
+
+        // --- CONTROLE DE LETREIRO (PRÉVIA E AR) ---
+        function loadToPreview(text) {
+            currentPreviewText = text;
+            localOverlay.innerText = text;
+            localOverlay.style.display = "block";
+        }
+
+        function pushToLive() {
+            if (currentPreviewText === "") {
+                alert("Clique em um nome na lista primeiro para carregar na prévia!");
+                return;
+            }
+            const target = document.getElementById('targetTelaoGC').value;
+            socket.emit('send-overlay', { text: currentPreviewText, action: 'show', target: target });
+        }
+
+        function killOverlay() {
+            localOverlay.style.display = "none";
+            currentPreviewText = "";
+            const target = document.getElementById('targetTelaoGC').value;
+            socket.emit('send-overlay', { action: 'clear', target: target });
+        }
+
+        renderNames();
+
+        // --- WEBRTC E FONTES DE VÍDEO ---
         function updateStream(stream) {
             currentStream = stream;
             videoElement.srcObject = stream;
@@ -160,14 +277,12 @@
             };
         }
 
-        // Inicia a camera automaticamente para que SEMPRE exista uma fonte/sender,
-        // evitando teloes que conectam cedo e ficam pretos para sempre.
+        // Inicia a câmera automaticamente (garante uma fonte/sender e evita telão preto)
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(updateStream)
             .catch(err => { console.error(err); alert('Câmera indisponível — escolha uma fonte (Tela/Vídeo).'); })
             .finally(() => socket.emit('broadcaster'));
 
-        // Cada telao que entra informa de qual numero ele e
         socket.on('watcher', (id, telaoId) => {
             const peerConnection = new RTCPeerConnection(config);
             peerConnections[id] = peerConnection;
@@ -186,17 +301,7 @@
         socket.on('candidate', (id, candidate) => peerConnections[id] && peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate)));
         socket.on('peer-left', id => { if (peerConnections[id]) { peerConnections[id].close(); delete peerConnections[id]; } });
 
-        // Roteamento de comandos
         function changeScene(sceneType, target) { socket.emit('switch-scene', { scene: sceneType, target: target }); }
-        function sendOverlay(text) {
-            if (!text) return;
-            const target = document.getElementById('targetTelaoGC').value;
-            socket.emit('send-overlay', { text: text, action: 'show', target: target });
-        }
-        function clearOverlay() {
-            const target = document.getElementById('targetTelaoGC').value;
-            socket.emit('send-overlay', { action: 'clear', target: target });
-        }
     </script>
 </body>
 </html>
