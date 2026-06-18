@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <base target="_top">
+    <style>
+        :root { --azul-ub: #00448A; --amarelo-ub: #FFED00; --branco: #FFFFFF; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--azul-ub); color: var(--branco); margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; text-align: center; padding: 20px; box-sizing: border-box; }
+        .container { background: rgba(255,255,255,0.1); padding: 30px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); width: 100%; max-width: 400px; }
+        h1 { color: var(--amarelo-ub); font-size: 1.8rem; margin-bottom: 5px; text-transform: uppercase; }
+        p { font-size: 1rem; margin-bottom: 20px; color: #ddd; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; font-size: 1rem; box-sizing: border-box; }
+        button { background-color: var(--amarelo-ub); color: var(--azul-ub); border: none; padding: 15px; width: 100%; font-size: 1.2rem; font-weight: bold; border-radius: 8px; cursor: pointer; text-transform: uppercase; transition: 0.3s; margin-top: 10px; }
+        button:hover { background-color: #ffd700; }
+        button:disabled { opacity: 0.6; cursor: default; }
+        .sucesso { display: none; color: var(--amarelo-ub); font-size: 1.5rem; font-weight: bold; margin-top: 20px; }
+        .erro { color: #ffcccc; font-size: 0.9rem; min-height: 18px; }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="form-container">
+        <h1>União Brasil</h1>
+        <p>Plenária Municipal - Confirme sua Presença</p>
+
+        <input type="text" id="nome" placeholder="Seu Nome Completo" required>
+        <input type="tel" id="whatsapp" placeholder="Seu WhatsApp (com DDD)" required>
+
+        <button id="btnConfirmar" onclick="confirmar()">Confirmar Presença</button>
+        <div class="erro" id="erro"></div>
+    </div>
+
+    <div class="container sucesso" id="msg-sucesso">
+        ✅ Presença Confirmada!<br><br>
+        <span style="color: white; font-size: 1rem; font-weight: normal;">Olhe para o telão, você já faz parte dessa contagem!</span>
+    </div>
+
+    <script>
+        // Já confirmou neste aparelho?
+        if (localStorage.getItem('presencaConfirmada')) {
+            document.getElementById('form-container').style.display = 'none';
+            document.getElementById('msg-sucesso').style.display = 'block';
+        }
+
+        function confirmar() {
+            const nome = document.getElementById('nome').value.trim();
+            const whatsapp = document.getElementById('whatsapp').value.trim();
+            const erro = document.getElementById('erro');
+            erro.innerText = '';
+
+            if (!nome || !whatsapp) { erro.innerText = 'Preencha todos os campos!'; return; }
+
+            const btn = document.getElementById('btnConfirmar');
+            btn.disabled = true;
+            btn.innerText = 'Enviando...';
+
+            google.script.run
+                .withSuccessHandler(function () {
+                    localStorage.setItem('presencaConfirmada', 'true');
+                    document.getElementById('form-container').style.display = 'none';
+                    document.getElementById('msg-sucesso').style.display = 'block';
+                })
+                .withFailureHandler(function (e) {
+                    erro.innerText = (e && e.message) ? e.message : 'Erro ao enviar. Tente de novo.';
+                    btn.disabled = false;
+                    btn.innerText = 'Confirmar Presença';
+                })
+                .registrarPresenca(nome, whatsapp);
+        }
+    </script>
+</body>
+</html>

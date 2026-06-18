@@ -131,6 +131,21 @@
                 <button class="btn-action" onclick="startScreenShare()">💻 Capturar Tela / Janela</button>
                 <input type="file" id="fileInput" accept="video/*" style="display:none" onchange="handleVideoFile(this.files[0])">
                 <button class="btn-action" onclick="document.getElementById('fileInput').click()" style="background: #5c2d91;">📁 Rodar Arquivo de Vídeo</button>
+
+                <div id="video-playback-info" style="display: none; margin-top: 15px; background: #111; padding: 12px; border-radius: 6px; border: 1px solid #444;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--amarelo-ub); margin-bottom: 8px; font-weight: bold;">
+                        <span id="video-time">00:00</span>
+                        <span id="video-duration">00:00</span>
+                    </div>
+                    <div style="width: 100%; background: #333; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 10px;">
+                        <div id="video-progress" style="width: 0%; height: 100%; background: var(--success); transition: width 0.2s;"></div>
+                    </div>
+                    <div class="grid-3" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                        <button onclick="playVideoLocal()" style="background: var(--success); margin: 0; padding: 8px;">▶ Play</button>
+                        <button onclick="pauseVideoLocal()" style="background: #e6b800; color: black; margin: 0; padding: 8px;">⏸ Pause</button>
+                        <button onclick="rewindVideoLocal()" style="background: #555; margin: 0; padding: 8px;">⏮ Voltar</button>
+                    </div>
+                </div>
             </div>
 
             <div class="module-box" style="flex: 2;">
@@ -226,14 +241,6 @@
             });
         }
 
-        function stopCurrentFile() {
-            if (fileVideoElement) {
-                fileVideoElement.pause();
-                fileVideoElement.src = "";
-                fileVideoElement = null;
-            }
-        }
-
         function startCamera() {
             stopCurrentFile();
             navigator.mediaDevices.getUserMedia({ video: true, audio: true })
@@ -246,18 +253,54 @@
                 .then(updateStream).catch(() => console.log("Captura cancelada."));
         }
 
+        // --- CONTROLE DE ARQUIVOS DE VÍDEO ---
         function handleVideoFile(file) {
             if (!file) return;
             stopCurrentFile();
+
             fileVideoElement = document.createElement('video');
             fileVideoElement.src = URL.createObjectURL(file);
             fileVideoElement.muted = true;
-            fileVideoElement.loop = true;
-            fileVideoElement.play();
-            fileVideoElement.onplaying = () => {
+            fileVideoElement.loop = false; // Não repete automaticamente
+
+            // Quando carregar os dados do vídeo, mostra o painel
+            fileVideoElement.onloadedmetadata = () => {
+                document.getElementById('video-playback-info').style.display = 'block';
+                document.getElementById('video-duration').innerText = formatTime(fileVideoElement.duration);
+            };
+
+            // Atualiza a barra de progresso
+            fileVideoElement.ontimeupdate = () => {
+                document.getElementById('video-time').innerText = formatTime(fileVideoElement.currentTime);
+                const progress = (fileVideoElement.currentTime / fileVideoElement.duration) * 100;
+                document.getElementById('video-progress').style.width = progress + '%';
+            };
+
+            // Prepara a transmissão do frame (carrega pausado)
+            fileVideoElement.oncanplay = () => {
                 const stream = fileVideoElement.captureStream ? fileVideoElement.captureStream() : fileVideoElement.mozCaptureStream();
                 updateStream(stream);
             };
+        }
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return "00:00";
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function playVideoLocal() { if (fileVideoElement) fileVideoElement.play(); }
+        function pauseVideoLocal() { if (fileVideoElement) fileVideoElement.pause(); }
+        function rewindVideoLocal() { if (fileVideoElement) { fileVideoElement.currentTime = 0; fileVideoElement.pause(); } }
+
+        function stopCurrentFile() {
+            if (fileVideoElement) {
+                fileVideoElement.pause();
+                fileVideoElement.src = "";
+                fileVideoElement = null;
+                document.getElementById('video-playback-info').style.display = 'none';
+            }
         }
 
         // --- MOTOR WEBRTC ---
@@ -363,7 +406,14 @@
         }
 
         // --- CONTROLES GERAIS ---
-        function changeScene(sceneType, target) { socket.emit('switch-scene', { scene: sceneType, target: target }); }
+        function changeScene(sceneType, target) {
+            // Se for liberar imagem e houver arquivo carregado, reinicia e dá play na hora
+            if (sceneType === 'camera' && fileVideoElement) {
+                fileVideoElement.currentTime = 0;
+                fileVideoElement.play();
+            }
+            socket.emit('switch-scene', { scene: sceneType, target: target });
+        }
         function triggerAds() { socket.emit('start-ads', document.getElementById('adsDuration').value); }
         function stopAds() { socket.emit('stop-ads'); }
         function toggleContador(mostrar) { socket.emit('toggle-contador', mostrar); }

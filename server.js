@@ -29,6 +29,23 @@ let contadorPresencas = 0;
 let listaPresencas = []; // { nome, whatsapp, hora }
 let contadorVisivel = false; // lembra se o contador esta na tela
 
+// Se PRESENCA_URL estiver definida (Web App do Apps Script + "?action=count"),
+// o servidor puxa o total da nuvem a cada 5s e atualiza os teloes.
+const PRESENCA_URL = process.env.PRESENCA_URL || '';
+if (PRESENCA_URL) {
+    console.log('☁️  Contador integrado a nuvem:', PRESENCA_URL);
+    setInterval(async () => {
+        try {
+            const resp = await fetch(PRESENCA_URL);
+            const data = await resp.json();
+            if (typeof data.total === 'number' && data.total !== contadorPresencas) {
+                contadorPresencas = data.total;
+                io.emit('atualizar-contador', contadorPresencas);
+            }
+        } catch (e) { /* rede instavel: tenta de novo no proximo ciclo */ }
+    }, 5000);
+}
+
 // Exporta a lista de presencas em CSV (leads do evento)
 app.get('/presencas.csv', (req, res) => {
     const linhas = [['Nome', 'WhatsApp', 'Hora']]
