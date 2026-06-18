@@ -1,0 +1,14 @@
+FOTOS DOS LÍDERES (painel L-Shape)
+==================================
+
+Coloque aqui as fotos com EXATAMENTE estes nomes:
+
+  clecio.jpg   -> Clécio Luís (Governador)
+  alliny.jpg   -> Alliny Serrão (Deputada Estadual)
+  teddy.jpg    -> Teddy Maciel (Prefeito)
+
+Dicas:
+- Use imagens quadradas (ex: 400x400) para ficarem bem no círculo.
+- Pode ser .jpg mesmo. Se quiser outro formato, me avise pra ajustar o caminho.
+- Se o arquivo não existir, o telão mostra as iniciais (CL / AS / TM) automaticamente,
+  então o anúncio funciona mesmo sem foto.

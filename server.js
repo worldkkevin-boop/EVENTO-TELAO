@@ -42,6 +42,7 @@ app.get('/presencas.csv', (req, res) => {
 });
 
 let broadcaster;
+let adTimer = null; // Controla o timer do anuncio L-Shape
 
 io.on('connection', (socket) => {
     socket.on('broadcaster', () => {
@@ -104,6 +105,27 @@ io.on('connection', (socket) => {
     // Ao conectar, ja manda o numero atual e o estado de visibilidade
     socket.emit('atualizar-contador', contadorPresencas);
     socket.emit('display-contador', contadorVisivel);
+
+    // --- ANUNCIOS L-SHAPE ---
+    // Ativa o L-Shape por X segundos e desativa sozinho
+    socket.on('start-ads', (duration) => {
+        io.emit('toggle-ads', true);
+        const segundos = Math.max(1, parseInt(duration, 10) || 5);
+        console.log(`📡 Anúncio L-Shape ativado por ${segundos} segundos.`);
+        if (adTimer) clearTimeout(adTimer);
+        adTimer = setTimeout(() => {
+            io.emit('toggle-ads', false);
+            console.log('📡 Anúncio finalizado. Vídeo voltando.');
+            adTimer = null;
+        }, segundos * 1000);
+    });
+
+    // Para o anuncio manualmente
+    socket.on('stop-ads', () => {
+        if (adTimer) { clearTimeout(adTimer); adTimer = null; }
+        io.emit('toggle-ads', false);
+        console.log('📡 Anúncio interrompido manualmente.');
+    });
 
     socket.on('disconnect', () => {
         if (socket.id === broadcaster) {

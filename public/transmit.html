@@ -128,6 +128,14 @@
         </div>
 
         <div class="control-group">
+            <h3>📢 Anúncios (L-Shape)</h3>
+            <label style="font-size: 0.9rem; color: #ccc;">Duração (segundos):</label>
+            <input type="number" id="adsDuration" value="5" min="1" max="60" style="margin-top: 5px;">
+            <button class="btn-success" onclick="triggerAds()">📺 Ativar Anúncios na Tela</button>
+            <button class="btn-danger" onclick="stopAds()">⏹️ Parar Agora</button>
+        </div>
+
+        <div class="control-group">
             <h3>📊 Contador de Presença</h3>
             <div class="grid-3" style="grid-template-columns: 1fr 1fr;">
                 <button class="btn-success" onclick="toggleContador(true)">👁️ Mostrar</button>
@@ -314,6 +322,13 @@
         socket.on('peer-left', id => { if (peerConnections[id]) { peerConnections[id].close(); delete peerConnections[id]; } });
 
         function changeScene(sceneType, target) { socket.emit('switch-scene', { scene: sceneType, target: target }); }
+
+        // --- ANÚNCIOS L-SHAPE ---
+        function triggerAds() {
+            const duration = document.getElementById('adsDuration').value;
+            socket.emit('start-ads', duration);
+        }
+        function stopAds() { socket.emit('stop-ads'); }
 
         // --- CONTADOR DE PRESENÇA ---
         function toggleContador(mostrar) { socket.emit('toggle-contador', mostrar); }
