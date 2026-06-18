@@ -127,7 +127,9 @@
 
             <div class="module-box">
                 <h4 class="module-title">📺 Origem da Imagem</h4>
-                <button class="btn-action" onclick="startCamera()">🎥 Câmera / Placa de Captura</button>
+                <label style="font-size:0.8rem; color:#8892b0;">Câmera / Placa de captura:</label>
+                <select id="cameraSelect" onchange="startCamera()"></select>
+                <button class="btn-action" onclick="startCamera()">🎥 Usar esta Câmera</button>
                 <button class="btn-action" onclick="startScreenShare()">💻 Capturar Tela / Janela</button>
                 <input type="file" id="fileInput" accept="video/*" style="display:none" onchange="handleVideoFile(this.files[0])">
                 <button class="btn-action" onclick="document.getElementById('fileInput').click()" style="background: #5c2d91;">📁 Rodar Arquivo de Vídeo</button>
@@ -245,10 +247,33 @@
             });
         }
 
+        // Lista as câmeras disponíveis no seletor (rótulos aparecem após dar permissão)
+        async function listCameras() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cams = devices.filter(d => d.kind === 'videoinput');
+                const sel = document.getElementById('cameraSelect');
+                const atual = sel.value;
+                sel.innerHTML = '';
+                cams.forEach((cam, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = cam.deviceId;
+                    opt.textContent = cam.label || ('Câmera ' + (i + 1));
+                    sel.appendChild(opt);
+                });
+                if (atual) sel.value = atual;
+            } catch (e) { console.error(e); }
+        }
+        // Atualiza a lista se conectar/desconectar uma câmera
+        if (navigator.mediaDevices) navigator.mediaDevices.addEventListener('devicechange', listCameras);
+
         function startCamera() {
             stopCurrentFile();
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                .then(updateStream).catch(err => alert("Erro na Câmera: " + err));
+            const deviceId = document.getElementById('cameraSelect').value;
+            const constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true, audio: true };
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => { updateStream(stream); listCameras(); })
+                .catch(err => alert("Erro na Câmera: " + err));
         }
 
         function startScreenShare() {
@@ -436,7 +461,7 @@
         // Inicia a câmera automaticamente e reanuncia quando a fonte estiver pronta
         // (garante que telões que conectaram cedo recebam a imagem — evita tela preta).
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then(stream => { updateStream(stream); socket.emit('broadcaster'); })
+            .then(stream => { updateStream(stream); listCameras(); socket.emit('broadcaster'); })
             .catch(err => { console.error(err); alert('Câmera indisponível — escolha uma fonte (Tela/Vídeo).'); });
     </script>
 </body>
