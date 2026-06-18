@@ -2,21 +2,66 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Transmissor - Tela Interna</title>
+    <title>OBS Studio Local - Painel de Controle</title>
     <link rel="stylesheet" href="style.css">
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+        /* Estilos específicos do Modo Estúdio */
+        body { display: flex; background: #1a1a1a; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #sidebar { width: 350px; background: #2d2d2d; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 20px; }
+        #main-preview { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .preview-container { width: 100%; max-width: 800px; border: 3px solid #444; border-radius: 8px; overflow: hidden; position: relative; }
+        #localVideo { width: 100%; height: auto; display: block; }
+        .badge { position: absolute; top: 10px; left: 10px; background: red; color: white; padding: 5px 10px; font-weight: bold; border-radius: 4px; font-size: 0.8rem; }
+
+        /* Componentes do Menu */
+        .control-group { background: #383838; padding: 15px; border-radius: 6px; }
+        h3 { margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 5px; color: #00bfff; }
+        button { background: #0078d4; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px; transition: 0.2s; }
+        button:hover { background: #005a9e; }
+        button.btn-danger { background: #d83b01; }
+        button.btn-danger:hover { background: #b83201; }
+        input[type="text"] { width: 90%; padding: 8px; border-radius: 4px; border: 1px solid #555; background: #222; color: white; margin-bottom: 8px; }
+    </style>
 </head>
 <body>
-    <h1>Transmitindo ao Vivo (Tela Interna)</h1>
-    <video id="localVideo" autoplay playsinline muted></video>
+
+    <div id="sidebar">
+        <h2>Painel Estúdio</h2>
+
+        <div class="control-group">
+            <h3>🎬 Cenas do Telão</h3>
+            <button onclick="changeScene('camera')">🎥 Transmitir Câmera</button>
+            <button class="btn-danger" onclick="changeScene('black')">⚫ Tela Preta / Standby</button>
+        </div>
+
+        <div class="control-group">
+            <h3>📢 Avisos no Telão</h3>
+            <input type="text" id="overlayText" placeholder="Ex: 'GOL DO BRASIL!' ou 'Intervalo'">
+            <button onclick="sendOverlay()">🚀 Enviar para o Telão</button>
+            <button class="btn-danger" onclick="clearOverlay()">❌ Limpar Letreiro</button>
+        </div>
+
+        <div style="font-size: 0.8rem; color: #aaa; margin-top: auto;">
+            Status: <span style="color: #00ff00;">● Servidor Ativo</span>
+        </div>
+    </div>
+
+    <div id="main-preview">
+        <h2>Monitor de Transmissão (Preview)</h2>
+        <div class="preview-container">
+            <span class="badge">PROVÁVEL TRANSMISSÃO</span>
+            <video id="localVideo" autoplay playsinline muted></video>
+        </div>
+    </div>
 
     <script>
         const socket = io();
         const videoElement = document.getElementById('localVideo');
         const peerConnections = {};
-
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+        // Captura a câmera
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
                 videoElement.srcObject = stream;
@@ -25,13 +70,10 @@
                 socket.on('watcher', id => {
                     const peerConnection = new RTCPeerConnection(config);
                     peerConnections[id] = peerConnection;
-
                     stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
 
                     peerConnection.onicecandidate = event => {
-                        if (event.candidate) {
-                            socket.emit('candidate', id, event.candidate);
-                        }
+                        if (event.candidate) socket.emit('candidate', id, event.candidate);
                     };
 
                     peerConnection.createOffer()
@@ -41,14 +83,24 @@
                         });
                 });
 
-                socket.on('answer', (id, description) => {
-                    peerConnections[id].setRemoteDescription(description);
-                });
+                socket.on('answer', (id, description) => { peerConnections[id].setRemoteDescription(description); });
+                socket.on('candidate', (id, candidate) => { peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate)); });
+            }).catch(error => console.error('Erro ao acessar hardware:', error));
 
-                socket.on('candidate', (id, candidate) => {
-                    peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate));
-                });
-            }).catch(error => console.error('Erro ao acessar câmera:', error));
+        // Funções do Menu Interativo
+        function changeScene(sceneType) {
+            socket.emit('switch-scene', sceneType);
+        }
+
+        function sendOverlay() {
+            const text = document.getElementById('overlayText').value;
+            socket.emit('send-overlay', { text: text, action: 'show' });
+        }
+
+        function clearOverlay() {
+            document.getElementById('overlayText').value = '';
+            socket.emit('send-overlay', { action: 'clear' });
+        }
     </script>
 </body>
 </html>

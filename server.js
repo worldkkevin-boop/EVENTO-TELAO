@@ -35,6 +35,16 @@ io.on('connection', (socket) => {
         socket.to(id).emit('candidate', socket.id, message);
     });
 
+    // Repassa a alteração de cena (ex: trocar de câmera para logo)
+    socket.on('switch-scene', (scene) => {
+        socket.broadcast.emit('scene-switched', scene);
+    });
+
+    // Repassa textos ou overlays criados no painel
+    socket.on('send-overlay', (data) => {
+        socket.broadcast.emit('overlay-updated', data);
+    });
+
     socket.on('disconnect', () => {
         if (socket.id === broadcaster) {
             socket.broadcast.emit('disconnectBroadcaster');

@@ -2,51 +2,84 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Receptor - Telão Externo</title>
+    <title>Telão Externo - Saída Limpa</title>
     <link rel="stylesheet" href="style.css">
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; position: relative; }
+        video { width: 100vw; height: 100vh; object-fit: cover; transition: opacity 0.5s ease; }
+
+        /* Camada do Letreiro/GC */
+        #telao-overlay {
+            position: absolute;
+            bottom: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 20px 50px;
+            font-size: 3rem;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            border-radius: 15px;
+            border-left: 10px solid #0078d4;
+            display: none; /* Começa escondido */
+            z-index: 999;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            text-align: center;
+            white-space: nowrap;
+        }
+    </style>
 </head>
 <body>
+
+    <div id="telao-overlay"></div>
+
     <video id="remoteVideo" autoplay playsinline></video>
 
     <script>
         let peerConnection;
         const socket = io();
         const videoElement = document.getElementById('remoteVideo');
+        const overlayElement = document.getElementById('telao-overlay');
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
+        // Controle de Cenas em Tempo Real
+        socket.on('scene-switched', (scene) => {
+            if (scene === 'black') {
+                videoElement.style.opacity = '0'; // Apaga o vídeo mantendo a conexão de fundo
+            } else if (scene === 'camera') {
+                videoElement.style.opacity = '1';  // Mostra a câmera de volta
+            }
+        });
+
+        // Controle de Textos na Tela
+        socket.on('overlay-updated', (data) => {
+            if (data.action === 'show') {
+                overlayElement.innerText = data.text;
+                overlayElement.style.display = 'block';
+            } else if (data.action === 'clear') {
+                overlayElement.style.display = 'none';
+            }
+        });
+
+        // Configuração Padrão do WebRTC (Transmissão de vídeo)
         socket.on('offer', (id, description) => {
             peerConnection = new RTCPeerConnection(config);
             peerConnection.setRemoteDescription(description)
                 .then(() => peerConnection.createAnswer())
                 .then(sdp => peerConnection.setLocalDescription(sdp))
-                .then(() => {
-                    socket.emit('answer', id, peerConnection.localDescription);
-                });
+                .then(() => socket.emit('answer', id, peerConnection.localDescription));
 
-            peerConnection.ontrack = event => {
-                videoElement.srcObject = event.streams[0];
-            };
-
+            peerConnection.ontrack = event => { videoElement.srcObject = event.streams[0]; };
             peerConnection.onicecandidate = event => {
-                if (event.candidate) {
-                    socket.emit('candidate', id, event.candidate);
-                }
+                if (event.candidate) socket.emit('candidate', id, event.candidate);
             };
         });
 
-        socket.on('candidate', (id, candidate) => {
-            peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        });
-
-        socket.on('connect', () => {
-            socket.emit('watcher');
-        });
-
-        socket.on('disconnectBroadcaster', () => {
-            if (peerConnection) peerConnection.close();
-            videoElement.srcObject = null;
-        });
+        socket.on('candidate', (id, candidate) => { peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); });
+        socket.on('connect', () => { socket.emit('watcher'); });
+        socket.on('disconnectBroadcaster', () => { if (peerConnection) peerConnection.close(); videoElement.srcObject = null; });
     </script>
 </body>
 </html>
