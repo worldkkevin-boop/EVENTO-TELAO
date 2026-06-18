@@ -6,22 +6,109 @@
     <link rel="stylesheet" href="style.css">
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* Estilos específicos do Modo Estúdio */
-        body { display: flex; background: #1a1a1a; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #sidebar { width: 350px; background: #2d2d2d; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 20px; }
-        #main-preview { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-        .preview-container { width: 100%; max-width: 800px; border: 3px solid #444; border-radius: 8px; overflow: hidden; position: relative; }
-        #localVideo { width: 100%; height: auto; display: block; }
-        .badge { position: absolute; top: 10px; left: 10px; background: red; color: white; padding: 5px 10px; font-weight: bold; border-radius: 4px; font-size: 0.8rem; }
+        /* Reset + caixa previsivel (resolve inputs estourando a largura) */
+        * { box-sizing: border-box; }
+
+        /* Sobrescreve o overflow:hidden global do style.css para o painel poder rolar */
+        html, body { height: 100%; margin: 0; overflow: hidden; }
+
+        body {
+            display: flex;
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* Coluna de controles: largura fixa, altura total e ROLAGEM PRÓPRIA */
+        #sidebar {
+            width: 340px;
+            flex-shrink: 0;
+            height: 100vh;
+            overflow-y: auto;
+            background: #2d2d2d;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        #sidebar h2 { margin: 0 0 4px; }
+
+        /* Coluna do preview: ocupa o resto, centraliza e também rola se precisar */
+        #main-preview {
+            flex: 1;
+            min-width: 0;
+            height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            gap: 16px;
+        }
+        #main-preview h2 { margin: 0; text-align: center; }
+
+        .preview-container {
+            width: 100%;
+            max-width: 800px;
+            border: 3px solid #444;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            background: #000;
+        }
+        #localVideo { width: 100%; height: auto; display: block; aspect-ratio: 16 / 9; object-fit: cover; }
+
+        .badge {
+            position: absolute; top: 10px; left: 10px;
+            background: #e10600; color: #fff;
+            padding: 5px 12px; font-weight: bold;
+            border-radius: 4px; font-size: 0.8rem;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .badge::before {
+            content: ''; width: 9px; height: 9px; border-radius: 50%;
+            background: #fff; animation: pulse 1.3s infinite;
+        }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
 
         /* Componentes do Menu */
         .control-group { background: #383838; padding: 15px; border-radius: 6px; }
-        h3 { margin-top: 0; border-bottom: 1px solid #555; padding-bottom: 5px; color: #00bfff; }
-        button { background: #0078d4; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px; transition: 0.2s; }
+        h3 { margin: 0 0 10px; border-bottom: 1px solid #555; padding-bottom: 6px; color: #00bfff; font-size: 1rem; }
+
+        button {
+            background: #0078d4; color: #fff; border: none;
+            padding: 11px 15px; border-radius: 4px; cursor: pointer;
+            font-weight: bold; width: 100%; margin-top: 8px; transition: .15s;
+        }
+        button:first-of-type { margin-top: 0; }
         button:hover { background: #005a9e; }
         button.btn-danger { background: #d83b01; }
         button.btn-danger:hover { background: #b83201; }
-        input[type="text"] { width: 90%; padding: 8px; border-radius: 4px; border: 1px solid #555; background: #222; color: white; margin-bottom: 8px; }
+
+        input[type="text"], select {
+            width: 100%; padding: 9px; border-radius: 4px;
+            border: 1px solid #555; background: #222; color: #fff;
+            margin-bottom: 8px; font-size: .95rem;
+        }
+        #linkTelao { font-family: monospace; }
+        .status-bar { font-size: .8rem; color: #aaa; margin-top: auto; padding-top: 8px; }
+
+        /* Barra de rolagem discreta no tema escuro */
+        #sidebar::-webkit-scrollbar, #main-preview::-webkit-scrollbar { width: 9px; }
+        #sidebar::-webkit-scrollbar-thumb, #main-preview::-webkit-scrollbar-thumb {
+            background: #555; border-radius: 5px;
+        }
+
+        /* Em janelas estreitas / celular: empilha e deixa a PÁGINA rolar */
+        @media (max-width: 820px) {
+            html, body { overflow: auto; }
+            body { flex-direction: column; height: auto; }
+            #sidebar { width: 100%; height: auto; overflow: visible; }
+            #main-preview { height: auto; overflow: visible; }
+            .status-bar { margin-top: 8px; }
+        }
     </style>
 </head>
 <body>
@@ -44,14 +131,14 @@
 
         <div class="control-group">
             <h3>🔗 Link do Telão</h3>
-            <select id="ipSelect" style="display:none; width:100%; padding:8px; border-radius:4px; border:1px solid #555; background:#222; color:#fff; margin-bottom:8px;"></select>
+            <select id="ipSelect" style="display:none;"></select>
             <input type="text" id="linkTelao" readonly placeholder="Clique em gerar para criar o link...">
             <button onclick="gerarLink()">📲 Gerar link para outro PC</button>
             <button onclick="copiarLink()">📋 Copiar link</button>
             <p style="font-size:0.75rem; color:#aaa; margin:8px 0 0;">Mande este link pra qualquer telão na mesma rede. Pode abrir em vários ao mesmo tempo.</p>
         </div>
 
-        <div style="font-size: 0.8rem; color: #aaa; margin-top: auto;">
+        <div class="status-bar">
             Status: <span style="color: #00ff00;">● Servidor Ativo</span>
         </div>
     </div>
@@ -59,7 +146,7 @@
     <div id="main-preview">
         <h2>Monitor de Transmissão (Preview)</h2>
         <div class="preview-container">
-            <span class="badge">PROVÁVEL TRANSMISSÃO</span>
+            <span class="badge">AO VIVO</span>
             <video id="localVideo" autoplay playsinline muted></video>
         </div>
     </div>
