@@ -126,6 +126,18 @@
             <button class="btn-live" onclick="pushToLive()">🔴 COLOCAR NO AR (TRANSMITIR)</button>
             <button class="btn-danger" style="padding: 12px; font-size: 1.1rem; margin-top: 10px;" onclick="killOverlay()">❌ TIRAR DO AR (IMEDIATO)</button>
         </div>
+
+        <div class="control-group">
+            <h3>📊 Contador de Presença</h3>
+            <div class="grid-3" style="grid-template-columns: 1fr 1fr;">
+                <button class="btn-success" onclick="toggleContador(true)">👁️ Mostrar</button>
+                <button class="btn-danger" onclick="toggleContador(false)">🙈 Esconder</button>
+            </div>
+            <button class="btn-success" onclick="copyPresencaLink()">📲 Copiar Link de Presença (QR)</button>
+            <a href="/presencas.csv" download style="text-decoration:none;"><button>⬇️ Baixar Lista (CSV)</button></a>
+            <button class="btn-danger" onclick="resetContador()">🔄 Zerar Contagem</button>
+            <p id="linkHint" style="word-break: break-all;">Link de presença aparece aqui ao copiar.</p>
+        </div>
     </div>
 
     <div id="main-preview">
@@ -302,6 +314,30 @@
         socket.on('peer-left', id => { if (peerConnections[id]) { peerConnections[id].close(); delete peerConnections[id]; } });
 
         function changeScene(sceneType, target) { socket.emit('switch-scene', { scene: sceneType, target: target }); }
+
+        // --- CONTADOR DE PRESENÇA ---
+        function toggleContador(mostrar) { socket.emit('toggle-contador', mostrar); }
+
+        function resetContador() {
+            if (confirm('Tem certeza que quer ZERAR a contagem e apagar a lista de presenças? Não dá pra desfazer.')) {
+                socket.emit('reset-contador');
+            }
+        }
+
+        async function copyPresencaLink() {
+            let base = location.origin;
+            if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+                try {
+                    const info = await (await fetch('/info')).json();
+                    if (info.ips && info.ips.length) base = `${location.protocol}//${info.ips[0]}:${info.port}`;
+                } catch (e) {}
+            }
+            const url = `${base}/presenca.html`;
+            document.getElementById('linkHint').innerText = 'Link de presença: ' + url;
+            navigator.clipboard.writeText(url)
+                .then(() => alert('Link de presença copiado:\n' + url + '\n\nUse este endereço no QR Code do telão.'))
+                .catch(() => prompt('Copie o link de presença:', url));
+        }
     </script>
 </body>
 </html>

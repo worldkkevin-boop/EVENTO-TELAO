@@ -24,6 +24,23 @@ app.get('/info', (req, res) => {
     res.json({ ips: getLocalIPs(), port: PORT });
 });
 
+// --- CONTADOR DE PRESENCA ---
+let contadorPresencas = 0;
+let listaPresencas = []; // { nome, whatsapp, hora }
+let contadorVisivel = false; // lembra se o contador esta na tela
+
+// Exporta a lista de presencas em CSV (leads do evento)
+app.get('/presencas.csv', (req, res) => {
+    const linhas = [['Nome', 'WhatsApp', 'Hora']]
+        .concat(listaPresencas.map(p => [p.nome, p.whatsapp, p.hora]));
+    const csv = linhas
+        .map(cols => cols.map(c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`).join(','))
+        .join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="presencas.csv"');
+    res.send('﻿' + csv); // BOM para acentos abrirem certo no Excel
+});
+
 let broadcaster;
 
 io.on('connection', (socket) => {
@@ -56,6 +73,37 @@ io.on('connection', (socket) => {
         if (data.target === 'todos') { socket.broadcast.emit('overlay-updated', data); }
         else { io.to('telao-' + data.target).emit('overlay-updated', data); }
     });
+
+    // --- CONTADOR DE PRESENCA ---
+    // Quando alguem confirma no celular
+    socket.on('nova-presenca', (dados) => {
+        contadorPresencas++;
+        listaPresencas.push({
+            nome: dados.nome,
+            whatsapp: dados.whatsapp,
+            hora: new Date().toLocaleString('pt-BR')
+        });
+        console.log(`Nova presença: ${dados.nome}. Total: ${contadorPresencas}`);
+        io.emit('atualizar-contador', contadorPresencas);
+    });
+
+    // Liga/desliga o contador em todos os teloes (e lembra o estado)
+    socket.on('toggle-contador', (mostrar) => {
+        contadorVisivel = !!mostrar;
+        io.emit('display-contador', contadorVisivel);
+    });
+
+    // Zera a contagem (botao do painel, com confirmacao no front)
+    socket.on('reset-contador', () => {
+        contadorPresencas = 0;
+        listaPresencas = [];
+        console.log('Contador zerado pelo painel.');
+        io.emit('atualizar-contador', contadorPresencas);
+    });
+
+    // Ao conectar, ja manda o numero atual e o estado de visibilidade
+    socket.emit('atualizar-contador', contadorPresencas);
+    socket.emit('display-contador', contadorVisivel);
 
     socket.on('disconnect', () => {
         if (socket.id === broadcaster) {

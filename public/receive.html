@@ -34,11 +34,31 @@
             transform: translateX(0);
             opacity: 1;
         }
+
+        /* DESIGN DO CONTADOR UNIÃO BRASIL */
+        #contador-telao {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #00448A; /* Azul União */
+            border: 3px solid #FFED00; /* Borda Amarela */
+            color: #fff;
+            padding: 15px 30px;
+            font-size: 2.5rem;
+            font-weight: 900;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none; /* Começa desligado, ligado pelo painel */
+            text-transform: uppercase;
+        }
+        #contador-telao span { color: #FFED00; font-size: 3.5rem; }
     </style>
 </head>
 <body>
 
     <div id="id-telao">Carregando...</div>
+    <div id="contador-telao">Presentes: <span id="num-contador">0</span></div>
     <div id="telao-overlay">NOME DO POLÍTICO</div>
     <video id="remoteVideo" autoplay playsinline muted onclick="this.muted = !this.muted"></video>
 
@@ -86,6 +106,14 @@
         });
 
         socket.on('candidate', (id, candidate) => { peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); });
+
+        // --- CONTADOR DE PRESENÇA ---
+        socket.on('atualizar-contador', (total) => {
+            document.getElementById('num-contador').innerText = total;
+        });
+        socket.on('display-contador', (mostrar) => {
+            document.getElementById('contador-telao').style.display = mostrar ? 'block' : 'none';
+        });
 
         // Ao conectar, avisa o servidor: "Eu sou o Telão X!"
         socket.on('connect', () => { socket.emit('watcher', myTelaoId); });
