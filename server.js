@@ -1,10 +1,28 @@
 const express = require('express');
+const os = require('os');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const PORT = 3000;
 
 app.use(express.static('public'));
+
+// Descobre os IPs da rede local (Wi-Fi / cabo) desta maquina
+function getLocalIPs() {
+    const nets = os.networkInterfaces();
+    const ips = [];
+    for (const name of Object.keys(nets)) {
+        for (const net of nets[name]) {
+            if (net.family === 'IPv4' && !net.internal) ips.push(net.address);
+        }
+    }
+    return ips;
+}
+
+// O painel usa esta rota para montar o link do telao para outros PCs
+app.get('/info', (req, res) => {
+    res.json({ ips: getLocalIPs(), port: PORT });
+});
 
 let broadcaster;
 

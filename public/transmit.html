@@ -42,6 +42,15 @@
             <button class="btn-danger" onclick="clearOverlay()">❌ Limpar Letreiro</button>
         </div>
 
+        <div class="control-group">
+            <h3>🔗 Link do Telão</h3>
+            <select id="ipSelect" style="display:none; width:100%; padding:8px; border-radius:4px; border:1px solid #555; background:#222; color:#fff; margin-bottom:8px;"></select>
+            <input type="text" id="linkTelao" readonly placeholder="Clique em gerar para criar o link...">
+            <button onclick="gerarLink()">📲 Gerar link para outro PC</button>
+            <button onclick="copiarLink()">📋 Copiar link</button>
+            <p style="font-size:0.75rem; color:#aaa; margin:8px 0 0;">Mande este link pra qualquer telão na mesma rede. Pode abrir em vários ao mesmo tempo.</p>
+        </div>
+
         <div style="font-size: 0.8rem; color: #aaa; margin-top: auto;">
             Status: <span style="color: #00ff00;">● Servidor Ativo</span>
         </div>
@@ -100,6 +109,49 @@
         function clearOverlay() {
             document.getElementById('overlayText').value = '';
             socket.emit('send-overlay', { action: 'clear' });
+        }
+
+        // ---- Gerar / copiar o link do telão ----
+        const ipSelect = document.getElementById('ipSelect');
+        const linkInput = document.getElementById('linkTelao');
+
+        function montarLink() {
+            const ip = ipSelect.value || location.hostname;
+            linkInput.value = `${location.protocol}//${ip}:${location.port || 80}/receive.html`;
+        }
+
+        async function gerarLink() {
+            try {
+                const info = await (await fetch('/info')).json();
+                const ips = info.ips || [];
+                if (ips.length === 0) {
+                    // Sem IP de rede detectado: usa o host atual como fallback
+                    linkInput.value = `${location.origin}/receive.html`;
+                    return;
+                }
+                ipSelect.innerHTML = '';
+                ips.forEach(ip => {
+                    const opt = document.createElement('option');
+                    opt.value = ip;
+                    opt.textContent = ip;
+                    ipSelect.appendChild(opt);
+                });
+                // Mostra o seletor só quando há mais de um IP (ex: Wi-Fi + cabo)
+                ipSelect.style.display = ips.length > 1 ? 'block' : 'none';
+                ipSelect.value = ips[0];
+                ipSelect.onchange = montarLink;
+                linkInput.value = `${location.protocol}//${ips[0]}:${info.port}/receive.html`;
+            } catch (e) {
+                linkInput.value = `${location.origin}/receive.html`;
+            }
+        }
+
+        function copiarLink() {
+            if (!linkInput.value) { gerarLink(); return; }
+            linkInput.select();
+            navigator.clipboard.writeText(linkInput.value)
+                .then(() => alert('Link copiado! Cole no navegador do telão.'))
+                .catch(() => { document.execCommand('copy'); alert('Link copiado!'); });
         }
     </script>
 </body>
