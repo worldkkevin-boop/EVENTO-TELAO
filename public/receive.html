@@ -5,65 +5,49 @@
     <title>Telão Externo - Multi-Telão</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* CORES UNIÃO BRASIL */
-        :root { --azul-ub: #00448A; --amarelo-ub: #FFED00; --branco: #FFFFFF; }
+        /* CORES UNIÃO BRASIL + GEOMETRIA DO BURACO DO L-SHAPE */
+        :root {
+            --azul-ub: #00448A; --amarelo-ub: #FFED00; --branco: #FFFFFF;
+            /* Onde o vídeo encaixa quando o anúncio está ativo (canto sup. esquerdo).
+               Ajuste estes 4 valores para casar EXATAMENTE com o buraco da arte. */
+            --hole-top: 0%;
+            --hole-left: 0%;
+            --hole-width: 78%;
+            --hole-height: 86%;
+        }
 
-        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background-color: black; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background-color: #000; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
 
-        /* Container que organiza vídeo + painéis de anúncio */
-        #main-container {
-            display: grid;
-            width: 100vw;
-            height: 100vh;
-            grid-template-areas: "vid vid" "vid vid"; /* Normal: vídeo ocupa tudo */
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: 1fr 1fr;
+        /* VÍDEO: ocupa a tela toda; ao ativar o anúncio, encolhe pro buraco */
+        #video-wrapper {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; overflow: hidden; background: #000;
             transition: all 0.5s ease;
         }
-
-        /* VÍDEO PRINCIPAL */
-        #video-wrapper { grid-area: vid; width: 100%; height: 100%; position: relative; z-index: 10; overflow: hidden; }
         video { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.5s; }
 
-        /* PAINÉIS L-SHAPE (começam invisíveis) */
-        #bottom-panel {
-            grid-area: bot; background-color: var(--amarelo-ub);
-            display: flex; align-items: center; justify-content: center;
-            opacity: 0; transition: opacity 0.5s ease; z-index: 1;
-        }
-        #bottom-panel h2 { color: var(--azul-ub); margin: 0; font-size: 2.5rem; text-transform: uppercase; font-weight: 900; }
-
-        #side-panel {
-            grid-area: side; background-color: var(--azul-ub); color: white;
-            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px;
-            opacity: 0; transition: opacity 0.5s ease; z-index: 1; border-left: 5px solid var(--amarelo-ub);
+        /* ARTE DE FUNDO (Full HD 1920x1080 com buraco transparente).
+           Fica por cima do vídeo; só aparece no modo anúncio.
+           Se a imagem faltar, mostra o azul União como reserva. */
+        #lshape-art {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            background: var(--azul-ub) url('img/lshape-fundo.png') center / 100% 100% no-repeat;
+            z-index: 20; opacity: 0; pointer-events: none;
+            transition: opacity 0.5s ease;
         }
 
-        .leader-card { display: flex; flex-direction: column; align-items: center; text-align: center; }
-        /* Foto circular: usa imagem local de fundo; se faltar, mostra as iniciais */
-        .leader-photo {
-            width: 120px; height: 120px; border-radius: 50%; border: 5px solid var(--amarelo-ub);
-            background-color: #1b3a63; background-size: cover; background-position: center;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 900; font-size: 2.2rem; color: #fff;
+        /* MODO ANÚNCIO ATIVO */
+        body.ads-active #video-wrapper {
+            top: var(--hole-top); left: var(--hole-left);
+            width: var(--hole-width); height: var(--hole-height);
         }
-        .leader-name { margin-top: 10px; font-weight: bold; font-size: 1.2rem; }
-        .leader-title { font-size: 0.9rem; color: #ddd; }
-
-        /* L-SHAPE ATIVO: vídeo encolhe e painéis aparecem */
-        #main-container.ads-active {
-            grid-template-areas: "vid side" "bot side";
-            grid-template-columns: 1fr 280px;
-            grid-template-rows: 1fr 100px;
-        }
-        #main-container.ads-active #bottom-panel,
-        #main-container.ads-active #side-panel { opacity: 1; }
+        body.ads-active #lshape-art { opacity: 1; }
 
         /* IDENTIFICADOR DE TELÃO (some após 5s) */
-        #id-telao { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: var(--amarelo-ub); padding: 10px; border-radius: 5px; font-weight: bold; z-index: 200; }
+        #id-telao { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: var(--amarelo-ub); padding: 10px; border-radius: 5px; font-weight: bold; z-index: 300; }
 
         /* CONTADOR */
-        #contador-telao { position: absolute; top: 20px; right: 20px; background: var(--azul-ub); border: 3px solid var(--amarelo-ub); color: white; padding: 15px 30px; font-size: 2rem; font-weight: 900; border-radius: 12px; z-index: 200; display: none; text-transform: uppercase; }
+        #contador-telao { position: absolute; top: 20px; right: 20px; background: var(--azul-ub); border: 3px solid var(--amarelo-ub); color: #fff; padding: 15px 30px; font-size: 2rem; font-weight: 900; border-radius: 12px; z-index: 300; display: none; text-transform: uppercase; }
         #contador-telao span { color: var(--amarelo-ub); font-size: 3rem; }
 
         /* GC / LETREIRO DOS POLÍTICOS (canto inferior esquerdo) */
@@ -76,7 +60,7 @@
             border-left: 15px solid var(--amarelo-ub);
             border-radius: 4px 15px 15px 4px;
             box-shadow: 5px 5px 15px rgba(0,0,0,0.6);
-            z-index: 300; white-space: nowrap;
+            z-index: 400; white-space: nowrap;
             transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
         }
         #telao-overlay.active { transform: translateX(0); opacity: 1; }
@@ -84,37 +68,15 @@
 </head>
 <body>
 
-    <div id="main-container">
-
-        <div id="video-wrapper">
-            <video id="remoteVideo" autoplay playsinline muted onclick="this.muted = !this.muted"></video>
-            <div id="id-telao">Carregando...</div>
-            <div id="contador-telao">Presentes: <span id="num-contador">0</span></div>
-            <div id="telao-overlay">NOME DO POLÍTICO</div>
-        </div>
-
-        <div id="bottom-panel">
-            <h2>União que Constrói</h2>
-        </div>
-
-        <div id="side-panel">
-            <div class="leader-card">
-                <div class="leader-photo" style="background-image:url('lideres/clecio.jpg')">CL</div>
-                <div class="leader-name">Clécio Luís</div>
-                <div class="leader-title">Governador</div>
-            </div>
-            <div class="leader-card">
-                <div class="leader-photo" style="background-image:url('lideres/alliny.jpg')">AS</div>
-                <div class="leader-name">Alliny Serrão</div>
-                <div class="leader-title">Deputada Estadual</div>
-            </div>
-            <div class="leader-card">
-                <div class="leader-photo" style="background-image:url('lideres/teddy.jpg')">TM</div>
-                <div class="leader-name">Teddy Maciel</div>
-                <div class="leader-title">Prefeito</div>
-            </div>
-        </div>
+    <div id="video-wrapper">
+        <video id="remoteVideo" autoplay playsinline muted onclick="this.muted = !this.muted"></video>
     </div>
+
+    <div id="lshape-art"></div>
+
+    <div id="id-telao">Carregando...</div>
+    <div id="contador-telao">Presentes: <span id="num-contador">0</span></div>
+    <div id="telao-overlay">NOME DO POLÍTICO</div>
 
     <script>
         // ID do telão pela URL (ex: receive.html?t=1)
@@ -129,16 +91,14 @@
         const socket = io();
         const videoElement = document.getElementById('remoteVideo');
         const overlayElement = document.getElementById('telao-overlay');
-        const mainContainer = document.getElementById('main-container');
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
         // Tocar na tela libera o áudio no celular
         document.body.addEventListener('click', () => { videoElement.muted = false; });
 
-        // ANÚNCIOS L-SHAPE
+        // ANÚNCIOS L-SHAPE (arte única encaixando o vídeo no buraco)
         socket.on('toggle-ads', (startAds) => {
-            if (startAds) mainContainer.classList.add('ads-active');
-            else mainContainer.classList.remove('ads-active');
+            document.body.classList.toggle('ads-active', !!startAds);
         });
 
         // CENAS

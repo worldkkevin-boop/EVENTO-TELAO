@@ -2,183 +2,212 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Estúdio - União Brasil Multi-Telão</title>
+    <title>Estúdio de Transmissão - Plenária</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* BASE E CORES */
-        :root { --bg-dark: #121212; --bg-panel: #222; --bg-card: #2d2d2d; --text: #fff; --azul-ub: #00448A; --amarelo-ub: #FFED00; --danger: #d83b01; --success: #107c41; }
-        body { display: flex; background: var(--bg-dark); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; height: 100vh; overflow: hidden; }
+        /* 1. VARIAVEIS E RESET BASE */
+        :root {
+            --bg-dark: #0f1115; --bg-panel: #1a1d24; --bg-card: #252a33;
+            --text: #ffffff; --azul-ub: #00448A; --amarelo-ub: #FFED00;
+            --danger: #e81123; --success: #107c41; --border: #333b4d;
+        }
+        body {
+            margin: 0; padding: 0; background: var(--bg-dark); color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+        }
 
-        /* MENU LATERAL (SANFONAS) */
-        #sidebar { width: 400px; background: var(--bg-panel); padding: 15px; display: flex; flex-direction: column; height: 100%; overflow-y: auto; border-right: 2px solid #333; box-sizing: border-box; }
-        #sidebar::-webkit-scrollbar { width: 8px; }
-        #sidebar::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
-        h2 { text-align: center; color: var(--amarelo-ub); border-bottom: 2px solid var(--azul-ub); padding-bottom: 10px; margin-top: 0; text-transform: uppercase; }
+        /* 2. ÁREA SUPERIOR: CONTROLE CRÍTICO (SEMPRE VISÍVEL) */
+        #top-control-bar {
+            background: var(--bg-panel); border-bottom: 2px solid var(--azul-ub);
+            padding: 15px 20px; display: flex; gap: 20px; align-items: center; justify-content: space-between;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 10;
+        }
+        .routing-group { display: flex; gap: 10px; align-items: center; flex: 1; }
+        .routing-group h3 { margin: 0; color: var(--amarelo-ub); font-size: 1.1rem; text-transform: uppercase; white-space: nowrap; }
+        .btn-route { background: #333; color: white; padding: 12px 20px; border: 2px solid #555; border-radius: 6px; font-weight: bold; font-size: 1.1rem; cursor: pointer; transition: 0.2s; flex: 1; }
+        .btn-route:hover { background: #444; border-color: var(--azul-ub); }
+        .btn-route-all { background: var(--success); border-color: #0b5930; }
+        .btn-route-kill { background: var(--danger); border-color: #a80c19; }
 
-        /* ESTILO DOS ACCORDIONS (Sanfonas) */
-        details { background: var(--bg-card); margin-bottom: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #444; }
-        summary { background: #383838; padding: 12px 15px; font-weight: bold; cursor: pointer; color: #4DA8DA; list-style: none; display: flex; justify-content: space-between; align-items: center; }
-        summary::-webkit-details-marker { display: none; }
-        summary:after { content: "▼"; font-size: 0.8rem; color: #888; }
-        details[open] summary:after { content: "▲"; }
-        .details-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        /* Botão Mestre de Alternar Layout */
+        #btn-toggle-layout {
+            background: var(--azul-ub); color: white; border: none; padding: 12px 25px;
+            border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 1rem;
+            display: flex; align-items: center; gap: 8px; box-shadow: 0 0 10px rgba(0,68,138,0.5);
+        }
 
-        /* BOTÕES E INPUTS */
-        button { background: var(--azul-ub); color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; width: 100%; }
-        button:hover { filter: brightness(1.2); }
-        .btn-danger { background: var(--danger); }
-        .btn-success { background: var(--success); }
-        .btn-live { background: #e81123; border: 2px solid #ff4d4d; box-shadow: 0 0 10px rgba(232, 17, 35, 0.4); padding: 12px; font-size: 1.1rem; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
-        input, select { width: 100%; padding: 10px; box-sizing: border-box; background: #111; color: #fff; border: 1px solid #555; border-radius: 4px; }
+        /* 3. ÁREA PRINCIPAL (DINÂMICA) */
+        #main-workspace { display: flex; flex: 1; overflow: hidden; padding: 15px; gap: 15px; }
 
-        /* LISTA DE NOMES */
-        .name-row { display: flex; gap: 5px; margin-bottom: 5px; }
-        .name-row button.select-btn { background: #444; flex: 1; text-align: left; }
-        .name-row button.del-btn { width: 40px; background: #555; }
-        .name-row button:hover { background: #666; }
+        /* Painel Lateral de Ferramentas */
+        #tools-panel {
+            width: 380px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border);
+            display: flex; flex-direction: column; overflow-y: auto; padding: 15px; gap: 15px;
+            transition: width 0.3s ease;
+        }
+        #tools-panel::-webkit-scrollbar { width: 6px; }
+        #tools-panel::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
 
-        /* ÁREA PRINCIPAL (PRÉVIA) */
-        #main-preview { flex: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; position: relative; }
-        .preview-header { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 900px; margin-bottom: 10px; }
-        .preview-header h3 { margin: 0; }
-
-        /* CONTAINER DO VÍDEO E OTIMIZAÇÃO */
-        .preview-container { width: 100%; max-width: 900px; border: 2px solid #555; background: #000; position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
+        /* Área de Pré-visualização do Vídeo */
+        #video-panel {
+            flex: 1; background: #000; border-radius: 8px; border: 1px solid var(--border);
+            display: flex; flex-direction: column; position: relative; overflow: hidden;
+            transition: all 0.3s ease;
+        }
         #localVideo { width: 100%; height: 100%; object-fit: contain; }
 
-        /* Tela de Economia de Energia (Oculta) */
-        #eco-mode-screen { display: none; position: absolute; flex-direction: column; align-items: center; color: #888; }
-        #eco-mode-screen span { font-size: 3rem; margin-bottom: 10px; }
-
         /* GC Falso na Prévia */
-        #local-overlay { position: absolute; bottom: 8%; left: 5%; background: linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(20,20,20,0.8) 100%); color: #fff; padding: 8px 15px; font-size: 1.2rem; font-weight: 800; border-left: 8px solid var(--amarelo-ub); border-radius: 4px 10px 10px 4px; display: none; z-index: 10; }
+        #local-overlay {
+            position: absolute; bottom: 8%; left: 5%;
+            background: linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(20,20,20,0.8) 100%);
+            color: #fff; padding: 8px 15px; font-size: 1.2rem; font-weight: 800;
+            border-left: 8px solid var(--amarelo-ub); border-radius: 4px 10px 10px 4px; display: none; z-index: 10;
+        }
+
+        /* 4. COMPONENTES INTERNOS DOS MENUS */
+        .module-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 15px; }
+        .module-title { color: #8892b0; font-size: 0.9rem; text-transform: uppercase; margin: 0 0 10px 0; font-weight: bold; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+
+        button { background: #444; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px; transition: 0.2s; }
+        button:hover { filter: brightness(1.2); }
+        .btn-action { background: var(--azul-ub); }
+        input, select { width: 100%; padding: 10px; box-sizing: border-box; background: #111; color: #fff; border: 1px solid #444; border-radius: 4px; margin-bottom: 5px; }
+
+        /* Lista com Scroll Garantido */
+        .scrollable-list { max-height: 180px; overflow-y: auto; padding-right: 5px; margin-top: 5px; }
+        .scrollable-list::-webkit-scrollbar { width: 4px; }
+        .scrollable-list::-webkit-scrollbar-thumb { background: #666; }
+        .name-row { display: flex; gap: 5px; margin-bottom: 5px; }
+        .name-row button.select-btn { background: #333; flex: 1; text-align: left; margin: 0; }
+        .name-row button.del-btn { width: 40px; background: #555; margin: 0; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+        /* 5. MODO EXPANDIDO (PRÉVIA OCULTA) */
+        body.layout-expanded #video-panel { display: none; }
+        body.layout-expanded #tools-panel {
+            width: 100%;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-content: flex-start;
+        }
+        body.layout-expanded .module-box { flex: 1; min-width: 300px; }
     </style>
 </head>
 <body>
 
-    <div id="sidebar">
-        <h2>Painel Estúdio</h2>
-
-        <details open>
-            <summary>🔗 Links e Destinos (Telões)</summary>
-            <div class="details-content">
-                <div class="grid-3">
-                    <button class="btn-success" onclick="copyLink('1')">Link T1</button>
-                    <button class="btn-success" onclick="copyLink('2')">Link T2</button>
-                    <button class="btn-success" onclick="copyLink('3')">Link T3</button>
-                </div>
-                <hr style="border-color: #444; width: 100%;">
-                <label style="font-size: 0.8rem;">Mandar Imagem Para:</label>
-                <div class="grid-3">
-                    <button onclick="changeScene('camera', '1')">T1</button>
-                    <button onclick="changeScene('camera', '2')">T2</button>
-                    <button onclick="changeScene('camera', '3')">T3</button>
-                </div>
-                <button onclick="changeScene('camera', 'todos')" style="background: var(--amarelo-ub); color: var(--azul-ub);">🟢 Liberar Todos</button>
-                <button class="btn-danger" onclick="changeScene('black', 'todos')">⚫ Apagar Todos (Standby)</button>
-            </div>
-        </details>
-
-        <details>
-            <summary>📺 Origem da Imagem (Captura)</summary>
-            <div class="details-content">
-                <button onclick="startCamera()">🎥 Puxar Câmera</button>
-                <button onclick="startScreenShare()">💻 Puxar Tela/Apresentação</button>
-                <input type="file" id="fileInput" accept="video/*" style="display:none" onchange="handleVideoFile(this.files[0])">
-                <button class="btn-success" onclick="document.getElementById('fileInput').click()">📁 Rodar Arquivo de Vídeo</button>
-            </div>
-        </details>
-
-        <details>
-            <summary>👤 Letreiros (Comitiva/GC)</summary>
-            <div class="details-content">
-                <div style="display: flex; gap: 5px;">
-                    <input type="text" id="newNameInput" placeholder="Ex: José - Governador">
-                    <button class="btn-success" style="width: auto;" onclick="addNameToList()">➕</button>
-                </div>
-                <div id="dynamic-names-list" style="max-height: 150px; overflow-y: auto;"></div>
-
-                <select id="targetTelaoGC" style="margin-top: 10px;">
-                    <option value="todos">Telão: Todos</option>
-                    <option value="1">Telão: 1</option>
-                    <option value="2">Telão: 2</option>
-                    <option value="3">Telão: 3</option>
-                </select>
-
-                <button class="btn-live" onclick="pushToLive()">🔴 COLOCAR GC NO AR</button>
-                <button class="btn-danger" onclick="killOverlay()">❌ TIRAR GC DO AR</button>
-            </div>
-        </details>
-
-        <details>
-            <summary>📢 Anúncios e Interatividade</summary>
-            <div class="details-content">
-                <label style="font-size: 0.9rem; color: #ccc;">L-Shape União Brasil (Segundos):</label>
-                <div style="display: flex; gap: 5px;">
-                    <input type="number" id="adsDuration" value="10" min="1" max="60">
-                    <button class="btn-live" onclick="triggerAds()">Disparar Anúncio</button>
-                </div>
-                <button class="btn-danger" onclick="stopAds()">Parar Anúncio</button>
-                <hr style="border-color: #444; width: 100%;">
-                <label style="font-size: 0.9rem; color: #ccc;">Contador de Presença (QR Code):</label>
-                <div class="grid-2">
-                    <button class="btn-success" onclick="toggleContador(true)">Mostrar</button>
-                    <button class="btn-danger" onclick="toggleContador(false)">Esconder</button>
-                </div>
-                <button class="btn-success" onclick="copyPresencaLink()">📲 Copiar Link de Presença</button>
-                <a href="/presencas.csv" download style="text-decoration:none;"><button>⬇️ Baixar Lista (CSV)</button></a>
-                <button class="btn-danger" onclick="resetContador()">🔄 Zerar Contagem</button>
-                <p id="linkHint" style="font-size:0.75rem; color:#aaa; word-break:break-all; margin:0;"></p>
-            </div>
-        </details>
+    <div id="top-control-bar">
+        <div class="routing-group">
+            <h3>🔴 ENVIAR IMAGEM PARA:</h3>
+            <button class="btn-route" onclick="changeScene('camera', '1')">TELÃO 1</button>
+            <button class="btn-route" onclick="changeScene('camera', '2')">TELÃO 2</button>
+            <button class="btn-route" onclick="changeScene('camera', '3')">TELÃO 3</button>
+            <div style="width: 2px; height: 30px; background: #555; margin: 0 10px;"></div>
+            <button class="btn-route btn-route-all" onclick="changeScene('camera', 'todos')">🟢 TODOS</button>
+            <button class="btn-route btn-route-kill" onclick="changeScene('black', 'todos')">⚫ APAGAR TODOS</button>
+        </div>
+        <button id="btn-toggle-layout" onclick="toggleLayout()">
+            <span>🙈 Ocultar Vídeo e Expandir Painel</span>
+        </button>
     </div>
 
-    <div id="main-preview">
-        <div class="preview-header">
-            <h3>Monitor Local</h3>
-            <button id="btn-toggle-preview" onclick="togglePreview()" style="width: auto; background: #444;">🙈 Ocultar Vídeo (Mais Leve)</button>
-        </div>
-        <div class="preview-container">
-            <div id="eco-mode-screen">
-                <span>💤</span>
-                <strong>Prévia Oculta</strong>
-                <p style="font-size: 0.9rem; text-align: center;">Transmitindo normalmente para os telões.<br>Processamento de vídeo poupado.</p>
+    <div id="main-workspace">
+
+        <div id="tools-panel">
+
+            <div class="module-box">
+                <h4 class="module-title">🔗 Links dos Telões</h4>
+                <div class="grid-2">
+                    <button onclick="copyLink('1')">Copiar Link T1</button>
+                    <button onclick="copyLink('2')">Copiar Link T2</button>
+                    <button onclick="copyLink('3')" style="grid-column: span 2;">Copiar Link T3</button>
+                </div>
             </div>
 
-            <div id="local-overlay">Nome de Teste</div>
+            <div class="module-box">
+                <h4 class="module-title">📺 Origem da Imagem</h4>
+                <button class="btn-action" onclick="startCamera()">🎥 Câmera / Placa de Captura</button>
+                <button class="btn-action" onclick="startScreenShare()">💻 Capturar Tela / Janela</button>
+                <input type="file" id="fileInput" accept="video/*" style="display:none" onchange="handleVideoFile(this.files[0])">
+                <button class="btn-action" onclick="document.getElementById('fileInput').click()" style="background: #5c2d91;">📁 Rodar Arquivo de Vídeo</button>
+            </div>
 
-            <video id="localVideo" autoplay playsinline muted></video>
+            <div class="module-box" style="flex: 2;">
+                <h4 class="module-title">👤 Letreiros (GC / Nomes)</h4>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="newNameInput" placeholder="Adicionar novo nome..." style="margin: 0;">
+                    <button style="width: auto; margin: 0; padding: 0 15px; background: var(--success);" onclick="addNameToList()">➕</button>
+                </div>
+
+                <div id="dynamic-names-list" class="scrollable-list"></div>
+
+                <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
+                    <select id="targetTelaoGC">
+                        <option value="todos">Mostrar em: TODOS OS TELÕES</option>
+                        <option value="1">Mostrar em: Telão 1</option>
+                        <option value="2">Mostrar em: Telão 2</option>
+                        <option value="3">Mostrar em: Telão 3</option>
+                    </select>
+                    <div class="grid-2">
+                        <button style="background: var(--danger); font-size: 1.1rem; margin: 0;" onclick="killOverlay()">❌ TIRAR GC</button>
+                        <button style="background: var(--success); font-size: 1.1rem; margin: 0;" onclick="pushToLive()">🟢 ENVIAR GC</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="module-box">
+                <h4 class="module-title">📢 L-Shape e QR Code</h4>
+                <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
+                    <label style="font-size: 0.8rem; flex: 1;">Tempo L-Shape (s):</label>
+                    <input type="number" id="adsDuration" value="10" min="1" max="60" style="width: 60px; margin: 0;">
+                </div>
+                <div class="grid-2">
+                    <button style="background: #e6b800; color: #000; margin: 0;" onclick="triggerAds()">Ativar Anúncio</button>
+                    <button style="background: #888; margin: 0;" onclick="stopAds()">Parar Anúncio</button>
+                </div>
+                <hr style="border-color: #444; margin: 15px 0 10px 0;">
+                <label style="font-size: 0.8rem; display: block; margin-bottom: 5px;">Contador QR Code:</label>
+                <div class="grid-2">
+                    <button style="background: var(--success); margin: 0;" onclick="toggleContador(true)">Mostrar</button>
+                    <button style="background: #888; margin: 0;" onclick="toggleContador(false)">Esconder</button>
+                </div>
+                <button class="btn-action" onclick="copyPresencaLink()" style="margin-top: 8px;">📲 Copiar Link de Presença</button>
+                <a href="/presencas.csv" download style="text-decoration:none;"><button style="margin-top: 5px;">⬇️ Baixar Lista (CSV)</button></a>
+                <button style="background: var(--danger); margin-top: 5px;" onclick="resetContador()">🔄 Zerar Contagem</button>
+                <p id="linkHint" style="font-size:0.72rem; color:#8892b0; word-break:break-all; margin:6px 0 0;"></p>
+            </div>
+
         </div>
+
+        <div id="video-panel">
+            <video id="localVideo" autoplay playsinline muted></video>
+            <div id="local-overlay">Nome de Teste</div>
+        </div>
+
     </div>
 
     <script>
         const socket = io();
         const videoElement = document.getElementById('localVideo');
-        const ecoScreen = document.getElementById('eco-mode-screen');
         const localOverlay = document.getElementById('local-overlay');
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
         let currentStream = null;
         let peerConnections = {};
-        let fileVideoElement = null; // Para vídeos locais
+        let fileVideoElement = null;
 
-        // --- SISTEMA DE OTIMIZAÇÃO (MINIMIZAR PRÉVIA) ---
-        let previewVisible = true;
-        function togglePreview() {
-            previewVisible = !previewVisible;
-            const btn = document.getElementById('btn-toggle-preview');
-            if (previewVisible) {
-                videoElement.style.display = 'block';
-                ecoScreen.style.display = 'none';
-                btn.innerText = '🙈 Ocultar Vídeo (Mais Leve)';
-                btn.style.background = '#444';
+        // --- ALTERNÂNCIA DE LAYOUT ---
+        let isExpanded = false;
+        function toggleLayout() {
+            isExpanded = !isExpanded;
+            const btn = document.getElementById('btn-toggle-layout');
+            if (isExpanded) {
+                document.body.classList.add('layout-expanded');
+                btn.innerHTML = '<span>👁️ Mostrar Vídeo e Recolher Painel</span>';
             } else {
-                videoElement.style.display = 'none';
-                ecoScreen.style.display = 'flex';
-                btn.innerText = '👁️ Mostrar Vídeo';
-                btn.style.background = 'var(--azul-ub)';
+                document.body.classList.remove('layout-expanded');
+                btn.innerHTML = '<span>🙈 Ocultar Vídeo e Expandir Painel</span>';
             }
         }
 
@@ -186,8 +215,6 @@
         function updateStream(stream) {
             currentStream = stream;
             videoElement.srcObject = stream;
-
-            // Substitui as faixas para TODOS os telões conectados sem derrubar
             Object.values(peerConnections).forEach(pc => {
                 const videoTrack = stream.getVideoTracks()[0];
                 const audioTrack = stream.getAudioTracks()[0];
@@ -216,7 +243,7 @@
         function startScreenShare() {
             stopCurrentFile();
             navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-                .then(updateStream).catch(() => console.log("Captura de tela cancelada."));
+                .then(updateStream).catch(() => console.log("Captura cancelada."));
         }
 
         function handleVideoFile(file) {
@@ -224,7 +251,7 @@
             stopCurrentFile();
             fileVideoElement = document.createElement('video');
             fileVideoElement.src = URL.createObjectURL(file);
-            fileVideoElement.muted = true; // Necessário para Autoplay local
+            fileVideoElement.muted = true;
             fileVideoElement.loop = true;
             fileVideoElement.play();
             fileVideoElement.onplaying = () => {
@@ -233,29 +260,24 @@
             };
         }
 
-        // --- MOTOR WEBRTC (CONEXÃO COM OS TELÕES) ---
+        // --- MOTOR WEBRTC ---
         // Anuncia que é o transmissor SEMPRE que (re)conectar — sobrevive a restart do servidor
         socket.on('connect', () => socket.emit('broadcaster'));
 
         socket.on('watcher', (id, telaoId) => {
             const peerConnection = new RTCPeerConnection(config);
             peerConnections[id] = peerConnection;
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => peerConnection.addTrack(track, currentStream));
-            }
-            peerConnection.onicecandidate = event => {
-                if (event.candidate) socket.emit('candidate', id, event.candidate);
-            };
+            if (currentStream) currentStream.getTracks().forEach(track => peerConnection.addTrack(track, currentStream));
+            peerConnection.onicecandidate = event => { if (event.candidate) socket.emit('candidate', id, event.candidate); };
             peerConnection.createOffer()
                 .then(sdp => peerConnection.setLocalDescription(sdp))
                 .then(() => socket.emit('offer', id, peerConnection.localDescription));
         });
-
         socket.on('answer', (id, description) => peerConnections[id] && peerConnections[id].setRemoteDescription(description));
         socket.on('candidate', (id, candidate) => peerConnections[id] && peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate)));
         socket.on('peer-left', id => { if (peerConnections[id]) { peerConnections[id].close(); delete peerConnections[id]; } });
 
-        // --- SISTEMA DE LISTA DA COMITIVA (GC) — salvo no navegador ---
+        // --- LISTA DA COMITIVA (GC) — salva no navegador ---
         const STORE_KEY = 'comitiva-nomes';
         let savedNames = JSON.parse(localStorage.getItem(STORE_KEY) || 'null')
             || ["Alliny Serrão - Deputada", "Clécio Luís - Governador", "Teddy Maciel - Prefeito"];
@@ -269,17 +291,14 @@
             savedNames.forEach((name, index) => {
                 const row = document.createElement('div');
                 row.className = 'name-row';
-
                 const selectBtn = document.createElement('button');
                 selectBtn.className = 'select-btn';
                 selectBtn.innerText = name;
                 selectBtn.onclick = () => loadToPreview(name);
-
                 const delBtn = document.createElement('button');
                 delBtn.className = 'del-btn';
                 delBtn.innerHTML = '🗑️';
                 delBtn.onclick = () => { savedNames.splice(index, 1); persistNames(); renderNames(); };
-
                 row.appendChild(selectBtn);
                 row.appendChild(delBtn);
                 listDiv.appendChild(row);
@@ -301,6 +320,7 @@
             currentPreviewText = text;
             localOverlay.innerText = text;
             localOverlay.style.display = "block";
+            if (isExpanded) alert(`Pronto para enviar:\n${text}`);
         }
 
         function pushToLive() {
@@ -315,10 +335,9 @@
             const target = document.getElementById('targetTelaoGC').value;
             socket.emit('send-overlay', { action: 'clear', target: target });
         }
+        renderNames();
 
-        renderNames(); // Desenha a lista inicial
-
-        // --- LINKS (LAN-aware: usa o IP da rede quando local, domínio quando em VPS) ---
+        // --- LINKS (LAN-aware: IP real da rede quando local; domínio quando VPS) ---
         async function getBaseUrl() {
             let base = location.origin;
             if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
@@ -329,14 +348,12 @@
             }
             return base;
         }
-
         async function copyLink(telaoId) {
             const url = `${await getBaseUrl()}/receive.html?t=${telaoId}`;
             navigator.clipboard.writeText(url)
-                .then(() => alert(`Link Copiado!\nCole no navegador do Telão ${telaoId}:\n${url}`))
+                .then(() => alert(`Copiado!\nEnvie para o Telão ${telaoId}:\n${url}`))
                 .catch(() => prompt('Copie o link do Telão ' + telaoId + ':', url));
         }
-
         async function copyPresencaLink() {
             const url = `${await getBaseUrl()}/presenca.html`;
             document.getElementById('linkHint').innerText = 'Link de presença: ' + url;
@@ -345,7 +362,7 @@
                 .catch(() => prompt('Copie o link de presença:', url));
         }
 
-        // --- CONTROLES RÁPIDOS ---
+        // --- CONTROLES GERAIS ---
         function changeScene(sceneType, target) { socket.emit('switch-scene', { scene: sceneType, target: target }); }
         function triggerAds() { socket.emit('start-ads', document.getElementById('adsDuration').value); }
         function stopAds() { socket.emit('stop-ads'); }
@@ -357,7 +374,7 @@
         }
 
         // Inicia a câmera automaticamente e reanuncia quando a fonte estiver pronta
-        // (garante que telões que conectaram cedo recebam a imagem, evitando tela preta).
+        // (garante que telões que conectaram cedo recebam a imagem — evita tela preta).
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => { updateStream(stream); socket.emit('broadcaster'); })
             .catch(err => { console.error(err); alert('Câmera indisponível — escolha uma fonte (Tela/Vídeo).'); });
