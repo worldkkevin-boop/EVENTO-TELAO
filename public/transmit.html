@@ -2,161 +2,95 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>OBS Studio Local - Painel de Controle</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Estúdio - Multi-Telão</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* Reset + caixa previsivel (resolve inputs estourando a largura) */
         * { box-sizing: border-box; }
-
-        /* Sobrescreve o overflow:hidden global do style.css para o painel poder rolar */
         html, body { height: 100%; margin: 0; overflow: hidden; }
-
-        body {
-            display: flex;
-            background: #1a1a1a;
-            color: #fff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        /* Coluna de controles: largura fixa, altura total e ROLAGEM PRÓPRIA */
-        #sidebar {
-            width: 340px;
-            flex-shrink: 0;
-            height: 100vh;
-            overflow-y: auto;
-            background: #2d2d2d;
-            padding: 20px;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.5);
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        #sidebar h2 { margin: 0 0 4px; }
-
-        /* Coluna do preview: ocupa o resto, centraliza e também rola se precisar */
-        #main-preview {
-            flex: 1;
-            min-width: 0;
-            height: 100vh;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            gap: 16px;
-        }
+        body { display: flex; background: #121212; color: #fff; font-family: 'Segoe UI', sans-serif; }
+        #sidebar { width: 380px; flex-shrink: 0; background: #222; padding: 20px; display: flex; flex-direction: column; gap: 15px; height: 100vh; overflow-y: auto; border-right: 2px solid #333; }
+        #sidebar h2 { margin: 0; }
+        #main-preview { flex: 1; min-width: 0; height: 100vh; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
         #main-preview h2 { margin: 0; text-align: center; }
-
-        .preview-container {
-            width: 100%;
-            max-width: 800px;
-            border: 3px solid #444;
-            border-radius: 8px;
-            overflow: hidden;
-            position: relative;
-            background: #000;
-        }
-        #localVideo { width: 100%; height: auto; display: block; aspect-ratio: 16 / 9; object-fit: cover; }
-
-        .badge {
-            position: absolute; top: 10px; left: 10px;
-            background: #e10600; color: #fff;
-            padding: 5px 12px; font-weight: bold;
-            border-radius: 4px; font-size: 0.8rem; z-index: 10;
-            display: flex; align-items: center; gap: 6px;
-        }
-        .badge::before {
-            content: ''; width: 9px; height: 9px; border-radius: 50%;
-            background: #fff; animation: pulse 1.3s infinite;
-        }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
-
-        /* Componentes do Menu */
-        .control-group { background: #383838; padding: 15px; border-radius: 6px; }
-        h3 { margin: 0 0 10px; border-bottom: 1px solid #555; padding-bottom: 6px; color: #00bfff; font-size: 1rem; }
-
-        button {
-            background: #0078d4; color: #fff; border: none;
-            padding: 11px 15px; border-radius: 4px; cursor: pointer;
-            font-weight: bold; width: 100%; margin-top: 8px; transition: .15s;
-        }
-        button:first-of-type { margin-top: 0; }
+        .preview-container { width: 100%; max-width: 800px; border: 2px solid #555; background: #000; position: relative; border-radius: 8px; overflow: hidden; }
+        #localVideo { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: cover; }
+        .control-group { background: #2d2d2d; padding: 15px; border-radius: 8px; }
+        h3 { margin: 0 0 10px 0; font-size: 1rem; color: #4DA8DA; border-bottom: 1px solid #444; padding-bottom: 5px; }
+        button { background: #0078d4; color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 6px; transition: .15s; }
         button:hover { background: #005a9e; }
-        button.btn-danger { background: #d83b01; }
-        button.btn-danger:hover { background: #b83201; }
-        button.btn-success { background: #107c41; }
-        button.btn-success:hover { background: #0b5930; }
-
-        input[type="text"], select {
-            width: 100%; padding: 9px; border-radius: 4px;
-            border: 1px solid #555; background: #222; color: #fff;
-            margin-bottom: 8px; font-size: .95rem;
-        }
-        #linkTelao { font-family: monospace; }
-        .status-bar { font-size: .8rem; color: #aaa; margin-top: auto; padding-top: 8px; }
-
-        /* Barra de rolagem discreta no tema escuro */
+        .btn-danger { background: #d83b01; }
+        .btn-danger:hover { background: #b83201; }
+        .btn-success { background: #107c41; }
+        .btn-success:hover { background: #0b5930; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+        .grid-3 button { margin-top: 0; }
+        .politician-list button { background: #444; text-align: left; padding: 8px 10px; margin-top: 4px; }
+        .politician-list button:hover { background: #666; }
+        input, select { width: 100%; padding: 8px; box-sizing: border-box; background: #111; color: #fff; border: 1px solid #555; border-radius: 4px; margin-bottom: 5px; }
         #sidebar::-webkit-scrollbar, #main-preview::-webkit-scrollbar { width: 9px; }
-        #sidebar::-webkit-scrollbar-thumb, #main-preview::-webkit-scrollbar-thumb {
-            background: #555; border-radius: 5px;
-        }
-
-        /* Em janelas estreitas / celular: empilha e deixa a PÁGINA rolar */
-        @media (max-width: 820px) {
+        #sidebar::-webkit-scrollbar-thumb, #main-preview::-webkit-scrollbar-thumb { background: #555; border-radius: 5px; }
+        @media (max-width: 860px) {
             html, body { overflow: auto; }
             body { flex-direction: column; height: auto; }
             #sidebar { width: 100%; height: auto; overflow: visible; }
             #main-preview { height: auto; overflow: visible; }
-            .status-bar { margin-top: 8px; }
         }
     </style>
 </head>
 <body>
 
     <div id="sidebar">
-        <h2>Painel Estúdio</h2>
+        <h2>Controle Central</h2>
 
         <div class="control-group">
-            <h3>📺 Fonte do Sinal</h3>
-            <button onclick="startCamera()">🎥 Usar Câmera Web</button>
-            <button onclick="startScreenShare()">💻 Compartilhar Tela / Janela</button>
+            <h3>🔗 Links para os Notebooks</h3>
+            <button class="btn-success" onclick="copyLink('1')">Copiar Link Telão 1 (Principal)</button>
+            <button class="btn-success" onclick="copyLink('2')">Copiar Link Telão 2 (Apoio)</button>
+            <button class="btn-success" onclick="copyLink('3')">Copiar Link Telão 3 (Rua)</button>
+        </div>
+
+        <div class="control-group">
+            <h3>📺 Origem da Imagem (Preview)</h3>
+            <button onclick="startCamera()">🎥 Puxar Câmera</button>
+            <button onclick="startScreenShare()">💻 Puxar Tela/Apresentação</button>
             <input type="file" id="fileInput" accept="video/*" style="display:none" onchange="handleVideoFile(this.files[0])">
             <button class="btn-success" onclick="document.getElementById('fileInput').click()">📁 Rodar Vídeo Local</button>
         </div>
 
         <div class="control-group">
-            <h3>🎬 Cenas do Telão</h3>
-            <button onclick="changeScene('camera')">🟢 Liberar Transmissão</button>
-            <button class="btn-danger" onclick="changeScene('black')">⚫ Tela Preta / Standby</button>
+            <h3>🔀 Mandar Preview Para:</h3>
+            <div class="grid-3">
+                <button onclick="changeScene('camera', '1')">T1</button>
+                <button onclick="changeScene('camera', '2')">T2</button>
+                <button onclick="changeScene('camera', '3')">T3</button>
+            </div>
+            <button onclick="changeScene('camera', 'todos')">🟢 Liberar Todos</button>
+            <button class="btn-danger" onclick="changeScene('black', 'todos')">⚫ Apagar Todos os Telões</button>
         </div>
 
         <div class="control-group">
-            <h3>📢 Avisos no Telão</h3>
-            <input type="text" id="overlayText" placeholder="Ex: 'COMITIVA CHEGANDO!'">
-            <button onclick="sendOverlay()">🚀 Enviar para o Telão</button>
-            <button class="btn-danger" onclick="clearOverlay()">❌ Limpar Letreiro</button>
-        </div>
+            <h3>👤 Nomes (GC/Letreiro)</h3>
+            <select id="targetTelaoGC">
+                <option value="todos">Mostrar em Todos</option>
+                <option value="1">Só Telão 1</option>
+                <option value="2">Só Telão 2</option>
+                <option value="3">Só Telão 3 (Rua)</option>
+            </select>
 
-        <div class="control-group">
-            <h3>🔗 Link do Telão</h3>
-            <select id="ipSelect" style="display:none;"></select>
-            <input type="text" id="linkTelao" readonly placeholder="Clique em gerar para criar o link...">
-            <button onclick="gerarLink()">📲 Gerar link para outro PC</button>
-            <button onclick="copiarLink()">📋 Copiar link</button>
-            <p style="font-size:0.75rem; color:#aaa; margin:8px 0 0;">Mande este link pra qualquer telão na mesma rede. Pode abrir em vários ao mesmo tempo.</p>
-        </div>
-
-        <div class="status-bar">
-            Status: <span style="color: #00ff00;">● Servidor Ativo</span>
+            <div class="politician-list">
+                <button onclick="sendOverlay('João Silva - Prefeito')">João Silva - Prefeito</button>
+                <button onclick="sendOverlay('Alliny Serrão - Deputada')">Alliny Serrão - Deputada</button>
+                <button onclick="sendOverlay('Carlos Mendes - Vereador')">Carlos Mendes - Vereador</button>
+            </div>
+            <input type="text" id="customName" placeholder="Ou digite um nome na hora..." style="margin-top: 10px;">
+            <button onclick="sendOverlay(document.getElementById('customName').value)">Enviar Nome Digitado</button>
+            <button class="btn-danger" onclick="clearOverlay()">❌ Tirar Nome da Tela</button>
         </div>
     </div>
 
     <div id="main-preview">
-        <h2>Monitor de Transmissão (Preview)</h2>
+        <h2>Monitor Local (O que vai ser enviado)</h2>
         <div class="preview-container">
-            <span class="badge">AO VIVO</span>
             <video id="localVideo" autoplay playsinline muted></video>
         </div>
     </div>
@@ -166,141 +100,102 @@
         const videoElement = document.getElementById('localVideo');
         const peerConnections = {};
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-
         let currentStream = null;
-        let fileVideoElement = null; // Para reprodução de arquivos de vídeo
+        let fileVideoElement = null;
 
-        // Troca o sinal de TODOS os telões conectados sem derrubar a conexão (estilo OBS)
-        function updateTracksForPeers(stream) {
+        // Link inteligente: usa o IP da rede quando local (pros outros notebooks),
+        // e o dominio quando hospedado em VPS.
+        async function copyLink(telaoId) {
+            let base = location.origin;
+            if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+                try {
+                    const info = await (await fetch('/info')).json();
+                    if (info.ips && info.ips.length) base = `${location.protocol}//${info.ips[0]}:${info.port}`;
+                } catch (e) {}
+            }
+            const url = `${base}/receive.html?t=${telaoId}`;
+            navigator.clipboard.writeText(url)
+                .then(() => alert('Link copiado: ' + url + '\nEnvie para o notebook do telão correspondente.'))
+                .catch(() => prompt('Copie o link do Telão ' + telaoId + ':', url));
+        }
+
+        // Troca a fonte de TODOS os teloes sem derrubar a conexao (video + audio)
+        function updateStream(stream) {
             currentStream = stream;
             videoElement.srcObject = stream;
-
             const videoTrack = stream.getVideoTracks()[0];
             const audioTrack = stream.getAudioTracks()[0];
-
             Object.values(peerConnections).forEach(pc => {
                 const senders = pc.getSenders();
-                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-
-                if (videoSender && videoTrack) videoSender.replaceTrack(videoTrack);
-                if (audioSender && audioTrack) audioSender.replaceTrack(audioTrack);
+                const vSender = senders.find(s => s.track && s.track.kind === 'video');
+                const aSender = senders.find(s => s.track && s.track.kind === 'audio');
+                if (vSender && videoTrack) vSender.replaceTrack(videoTrack);
+                if (aSender && audioTrack) aSender.replaceTrack(audioTrack);
             });
         }
 
-        // 🎥 Fonte: Câmera
         function startCamera() {
-            if (fileVideoElement) { fileVideoElement.pause(); }
+            if (fileVideoElement) fileVideoElement.pause();
             navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                .then(stream => { updateTracksForPeers(stream); })
-                .catch(err => alert('Erro ao acessar câmera: ' + err));
+                .then(updateStream).catch(err => alert('Erro ao acessar câmera: ' + err));
         }
 
-        // 💻 Fonte: Compartilhar Janela/Tela
         function startScreenShare() {
-            if (fileVideoElement) { fileVideoElement.pause(); }
+            if (fileVideoElement) fileVideoElement.pause();
             navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-                .then(stream => { updateTracksForPeers(stream); })
-                .catch(err => console.log('Compartilhamento cancelado'));
+                .then(updateStream).catch(() => console.log('Compartilhamento cancelado'));
         }
 
-        // 📁 Fonte: Arquivo de Vídeo Local (MP4, etc.)
         function handleVideoFile(file) {
             if (!file) return;
-            if (fileVideoElement) { fileVideoElement.pause(); }
-
+            if (fileVideoElement) fileVideoElement.pause();
             fileVideoElement = document.createElement('video');
             fileVideoElement.src = URL.createObjectURL(file);
             fileVideoElement.muted = true;
             fileVideoElement.loop = true;
             fileVideoElement.play();
-
             fileVideoElement.onplaying = () => {
-                // Captura o fluxo do vídeo rodando localmente
                 const stream = fileVideoElement.captureStream ? fileVideoElement.captureStream() : fileVideoElement.mozCaptureStream();
-                updateTracksForPeers(stream);
+                updateStream(stream);
             };
         }
 
-        // Inicializa com a câmera padrão e anuncia que é o transmissor
+        // Inicia a camera automaticamente para que SEMPRE exista uma fonte/sender,
+        // evitando teloes que conectam cedo e ficam pretos para sempre.
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then(stream => {
-                currentStream = stream;
-                videoElement.srcObject = stream;
-                socket.emit('broadcaster');
-            })
-            .catch(err => console.error('Erro ao acessar hardware:', err));
+            .then(updateStream)
+            .catch(err => { console.error(err); alert('Câmera indisponível — escolha uma fonte (Tela/Vídeo).'); })
+            .finally(() => socket.emit('broadcaster'));
 
-        // Conexão WebRTC para cada telão que entra
-        socket.on('watcher', id => {
+        // Cada telao que entra informa de qual numero ele e
+        socket.on('watcher', (id, telaoId) => {
             const peerConnection = new RTCPeerConnection(config);
             peerConnections[id] = peerConnection;
-
             if (currentStream) {
                 currentStream.getTracks().forEach(track => peerConnection.addTrack(track, currentStream));
             }
-
             peerConnection.onicecandidate = event => {
                 if (event.candidate) socket.emit('candidate', id, event.candidate);
             };
-
             peerConnection.createOffer()
                 .then(sdp => peerConnection.setLocalDescription(sdp))
-                .then(() => { socket.emit('offer', id, peerConnection.localDescription); });
+                .then(() => socket.emit('offer', id, peerConnection.localDescription));
         });
 
-        socket.on('answer', (id, description) => { peerConnections[id].setRemoteDescription(description); });
-        socket.on('candidate', (id, candidate) => { peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate)); });
+        socket.on('answer', (id, description) => peerConnections[id] && peerConnections[id].setRemoteDescription(description));
+        socket.on('candidate', (id, candidate) => peerConnections[id] && peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate)));
+        socket.on('peer-left', id => { if (peerConnections[id]) { peerConnections[id].close(); delete peerConnections[id]; } });
 
-        // Limpa a conexão quando um telão sai
-        socket.on('peer-left', id => {
-            if (peerConnections[id]) { peerConnections[id].close(); delete peerConnections[id]; }
-        });
-
-        // Funções do Menu
-        function changeScene(sceneType) { socket.emit('switch-scene', sceneType); }
-        function sendOverlay() { socket.emit('send-overlay', { text: document.getElementById('overlayText').value, action: 'show' }); }
-        function clearOverlay() { document.getElementById('overlayText').value = ''; socket.emit('send-overlay', { action: 'clear' }); }
-
-        // ---- Gerar / copiar o link do telão ----
-        const ipSelect = document.getElementById('ipSelect');
-        const linkInput = document.getElementById('linkTelao');
-
-        function montarLink() {
-            const ip = ipSelect.value || location.hostname;
-            linkInput.value = `${location.protocol}//${ip}:${location.port || 80}/receive.html`;
+        // Roteamento de comandos
+        function changeScene(sceneType, target) { socket.emit('switch-scene', { scene: sceneType, target: target }); }
+        function sendOverlay(text) {
+            if (!text) return;
+            const target = document.getElementById('targetTelaoGC').value;
+            socket.emit('send-overlay', { text: text, action: 'show', target: target });
         }
-
-        async function gerarLink() {
-            try {
-                const info = await (await fetch('/info')).json();
-                const ips = info.ips || [];
-                if (ips.length === 0) {
-                    linkInput.value = `${location.origin}/receive.html`;
-                    return;
-                }
-                ipSelect.innerHTML = '';
-                ips.forEach(ip => {
-                    const opt = document.createElement('option');
-                    opt.value = ip;
-                    opt.textContent = ip;
-                    ipSelect.appendChild(opt);
-                });
-                ipSelect.style.display = ips.length > 1 ? 'block' : 'none';
-                ipSelect.value = ips[0];
-                ipSelect.onchange = montarLink;
-                linkInput.value = `${location.protocol}//${ips[0]}:${info.port}/receive.html`;
-            } catch (e) {
-                linkInput.value = `${location.origin}/receive.html`;
-            }
-        }
-
-        function copiarLink() {
-            if (!linkInput.value) { gerarLink(); return; }
-            linkInput.select();
-            navigator.clipboard.writeText(linkInput.value)
-                .then(() => alert('Link copiado! Cole no navegador do telão.'))
-                .catch(() => { document.execCommand('copy'); alert('Link copiado!'); });
+        function clearOverlay() {
+            const target = document.getElementById('targetTelaoGC').value;
+            socket.emit('send-overlay', { action: 'clear', target: target });
         }
     </script>
 </body>

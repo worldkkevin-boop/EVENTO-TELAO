@@ -2,82 +2,78 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Telão Externo - Saída Limpa</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Telão Externo</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; position: relative; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
+        video { width: 100vw; height: 100vh; object-fit: cover; transition: opacity 0.5s; opacity: 0; }
 
-        /* muted no <video> evita o bloqueio de autoplay dos celulares */
-        video { width: 100vw; height: 100vh; object-fit: cover; transition: opacity 0.5s ease; }
+        /* IDENTIFICADOR DE TELÃO (Some após 5 segundos) */
+        #id-telao { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: yellow; padding: 10px; border-radius: 5px; font-weight: bold; z-index: 1000; }
 
-        /* 🎭 EFEITO DE ENTRADA DO LETREIRO */
+        /* DESIGN DO GC (Letreiro Lateral inferior esquerdo) */
         #telao-overlay {
             position: absolute;
-            bottom: 12%;
-            left: 50%;
-            transform: translate(-50%, 40px); /* Começa um pouco abaixo */
-            opacity: 0;                       /* Começa invisível */
-            background: rgba(0, 0, 0, 0.85);
+            bottom: 8%;
+            left: 5%;
+            transform: translateX(-120%); /* Escondido fora da tela à esquerda */
+            opacity: 0;
+            background: linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(20,20,20,0.8) 100%);
             color: #fff;
-            padding: 18px 45px;
-            font-size: 3.2rem;
-            font-family: 'Arial Black', sans-serif;
-            text-transform: uppercase;
-            border-radius: 12px;
-            border-left: 12px solid #0078d4;
+            padding: 15px 40px 15px 25px;
+            font-size: 2.5rem;
+            font-weight: 800;
+            border-left: 15px solid #0078d4;
+            border-radius: 4px 15px 15px 4px;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.6);
             z-index: 999;
-            text-shadow: 3px 3px 6px rgba(0,0,0,0.9);
-            text-align: center;
             white-space: nowrap;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Efeito elástico suave */
+            transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
         }
-
-        /* Classe ativada via JavaScript para disparar a animação */
         #telao-overlay.active {
-            transform: translate(-50%, 0); /* Sobe para a posição original */
-            opacity: 1;                    /* Aparece */
+            transform: translateX(0);
+            opacity: 1;
         }
     </style>
 </head>
 <body>
 
-    <div id="telao-overlay"></div>
-
+    <div id="id-telao">Carregando...</div>
+    <div id="telao-overlay">NOME DO POLÍTICO</div>
     <video id="remoteVideo" autoplay playsinline muted onclick="this.muted = !this.muted"></video>
 
     <script>
+        // Pega o número do telão na URL (ex: receive.html?t=3)
+        const params = new URLSearchParams(window.location.search);
+        const myTelaoId = params.get('t') || '1'; // Padrão é 1 se abrir sem link
+
+        const idBadge = document.getElementById('id-telao');
+        idBadge.innerText = `CONECTADO: TELÃO ${myTelaoId}`;
+        setTimeout(() => idBadge.style.display = 'none', 5000);
+
         let peerConnection;
         const socket = io();
         const videoElement = document.getElementById('remoteVideo');
         const overlayElement = document.getElementById('telao-overlay');
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        // Permite desmutar o celular clicando em qualquer lugar da tela
-        document.body.addEventListener('click', () => {
-            if (videoElement.muted) {
-                videoElement.muted = false;
-                console.log("Áudio liberado pelo operador!");
-            }
-        });
+        // Tocar na tela libera o áudio no celular
+        document.body.addEventListener('click', () => { videoElement.muted = false; });
 
-        // Controle de Cenas
         socket.on('scene-switched', (scene) => {
             if (scene === 'black') videoElement.style.opacity = '0';
             if (scene === 'camera') videoElement.style.opacity = '1';
         });
 
-        // Controle de Texto com Animação de Entrada/Saída
         socket.on('overlay-updated', (data) => {
             if (data.action === 'show') {
                 overlayElement.innerText = data.text;
-                overlayElement.classList.add('active'); // Ativa o efeito CSS
+                overlayElement.classList.add('active');
             } else if (data.action === 'clear') {
-                overlayElement.classList.remove('active'); // Remove com efeito sumindo
+                overlayElement.classList.remove('active');
             }
         });
 
-        // WebRTC Engine
         socket.on('offer', (id, description) => {
             peerConnection = new RTCPeerConnection(config);
             peerConnection.setRemoteDescription(description)
@@ -85,14 +81,14 @@
                 .then(sdp => peerConnection.setLocalDescription(sdp))
                 .then(() => socket.emit('answer', id, peerConnection.localDescription));
 
-            peerConnection.ontrack = event => { videoElement.srcObject = event.streams[0]; };
-            peerConnection.onicecandidate = event => {
-                if (event.candidate) socket.emit('candidate', id, event.candidate);
-            };
+            peerConnection.ontrack = event => { videoElement.srcObject = event.streams[0]; videoElement.style.opacity = '1'; };
+            peerConnection.onicecandidate = event => { if (event.candidate) socket.emit('candidate', id, event.candidate); };
         });
 
         socket.on('candidate', (id, candidate) => { peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); });
-        socket.on('connect', () => { socket.emit('watcher'); });
+
+        // Ao conectar, avisa o servidor: "Eu sou o Telão X!"
+        socket.on('connect', () => { socket.emit('watcher', myTelaoId); });
         socket.on('disconnectBroadcaster', () => { if (peerConnection) peerConnection.close(); videoElement.srcObject = null; });
     </script>
 </body>
