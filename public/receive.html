@@ -7,27 +7,36 @@
     <script src="/socket.io/socket.io.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; position: relative; }
+
+        /* muted no <video> evita o bloqueio de autoplay dos celulares */
         video { width: 100vw; height: 100vh; object-fit: cover; transition: opacity 0.5s ease; }
 
-        /* Camada do Letreiro/GC */
+        /* 🎭 EFEITO DE ENTRADA DO LETREIRO */
         #telao-overlay {
             position: absolute;
-            bottom: 10%;
+            bottom: 12%;
             left: 50%;
-            transform: translateX(-50%);
+            transform: translate(-50%, 40px); /* Começa um pouco abaixo */
+            opacity: 0;                       /* Começa invisível */
             background: rgba(0, 0, 0, 0.85);
             color: #fff;
-            padding: 20px 50px;
-            font-size: 3rem;
-            font-family: Arial, sans-serif;
-            font-weight: bold;
-            border-radius: 15px;
-            border-left: 10px solid #0078d4;
-            display: none; /* Começa escondido */
+            padding: 18px 45px;
+            font-size: 3.2rem;
+            font-family: 'Arial Black', sans-serif;
+            text-transform: uppercase;
+            border-radius: 12px;
+            border-left: 12px solid #0078d4;
             z-index: 999;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.9);
             text-align: center;
             white-space: nowrap;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Efeito elástico suave */
+        }
+
+        /* Classe ativada via JavaScript para disparar a animação */
+        #telao-overlay.active {
+            transform: translate(-50%, 0); /* Sobe para a posição original */
+            opacity: 1;                    /* Aparece */
         }
     </style>
 </head>
@@ -35,7 +44,7 @@
 
     <div id="telao-overlay"></div>
 
-    <video id="remoteVideo" autoplay playsinline></video>
+    <video id="remoteVideo" autoplay playsinline muted onclick="this.muted = !this.muted"></video>
 
     <script>
         let peerConnection;
@@ -44,26 +53,31 @@
         const overlayElement = document.getElementById('telao-overlay');
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        // Controle de Cenas em Tempo Real
-        socket.on('scene-switched', (scene) => {
-            if (scene === 'black') {
-                videoElement.style.opacity = '0'; // Apaga o vídeo mantendo a conexão de fundo
-            } else if (scene === 'camera') {
-                videoElement.style.opacity = '1';  // Mostra a câmera de volta
+        // Permite desmutar o celular clicando em qualquer lugar da tela
+        document.body.addEventListener('click', () => {
+            if (videoElement.muted) {
+                videoElement.muted = false;
+                console.log("Áudio liberado pelo operador!");
             }
         });
 
-        // Controle de Textos na Tela
+        // Controle de Cenas
+        socket.on('scene-switched', (scene) => {
+            if (scene === 'black') videoElement.style.opacity = '0';
+            if (scene === 'camera') videoElement.style.opacity = '1';
+        });
+
+        // Controle de Texto com Animação de Entrada/Saída
         socket.on('overlay-updated', (data) => {
             if (data.action === 'show') {
                 overlayElement.innerText = data.text;
-                overlayElement.style.display = 'block';
+                overlayElement.classList.add('active'); // Ativa o efeito CSS
             } else if (data.action === 'clear') {
-                overlayElement.style.display = 'none';
+                overlayElement.classList.remove('active'); // Remove com efeito sumindo
             }
         });
 
-        // Configuração Padrão do WebRTC (Transmissão de vídeo)
+        // WebRTC Engine
         socket.on('offer', (id, description) => {
             peerConnection = new RTCPeerConnection(config);
             peerConnection.setRemoteDescription(description)

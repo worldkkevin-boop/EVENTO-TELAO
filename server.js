@@ -66,6 +66,9 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if (socket.id === broadcaster) {
             socket.broadcast.emit('disconnectBroadcaster');
+        } else {
+            // Avisa o transmissor que um telão saiu, pra ele liberar a conexão
+            socket.broadcast.emit('peer-left', socket.id);
         }
     });
 });

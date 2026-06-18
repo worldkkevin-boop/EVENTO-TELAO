@@ -64,7 +64,7 @@
             position: absolute; top: 10px; left: 10px;
             background: #e10600; color: #fff;
             padding: 5px 12px; font-weight: bold;
-            border-radius: 4px; font-size: 0.8rem;
+            border-radius: 4px; font-size: 0.8rem; z-index: 10;
             display: flex; align-items: center; gap: 6px;
         }
         .badge::before {
@@ -86,6 +86,8 @@
         button:hover { background: #005a9e; }
         button.btn-danger { background: #d83b01; }
         button.btn-danger:hover { background: #b83201; }
+        button.btn-success { background: #107c41; }
+        button.btn-success:hover { background: #0b5930; }
 
         input[type="text"], select {
             width: 100%; padding: 9px; border-radius: 4px;
@@ -117,14 +119,22 @@
         <h2>Painel Estúdio</h2>
 
         <div class="control-group">
+            <h3>📺 Fonte do Sinal</h3>
+            <button onclick="startCamera()">🎥 Usar Câmera Web</button>
+            <button onclick="startScreenShare()">💻 Compartilhar Tela / Janela</button>
+            <input type="file" id="fileInput" accept="video/*" style="display:none" onchange="handleVideoFile(this.files[0])">
+            <button class="btn-success" onclick="document.getElementById('fileInput').click()">📁 Rodar Vídeo Local</button>
+        </div>
+
+        <div class="control-group">
             <h3>🎬 Cenas do Telão</h3>
-            <button onclick="changeScene('camera')">🎥 Transmitir Câmera</button>
+            <button onclick="changeScene('camera')">🟢 Liberar Transmissão</button>
             <button class="btn-danger" onclick="changeScene('black')">⚫ Tela Preta / Standby</button>
         </div>
 
         <div class="control-group">
             <h3>📢 Avisos no Telão</h3>
-            <input type="text" id="overlayText" placeholder="Ex: 'GOL DO BRASIL!' ou 'Intervalo'">
+            <input type="text" id="overlayText" placeholder="Ex: 'COMITIVA CHEGANDO!'">
             <button onclick="sendOverlay()">🚀 Enviar para o Telão</button>
             <button class="btn-danger" onclick="clearOverlay()">❌ Limpar Letreiro</button>
         </div>
@@ -157,46 +167,100 @@
         const peerConnections = {};
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        // Captura a câmera
+        let currentStream = null;
+        let fileVideoElement = null; // Para reprodução de arquivos de vídeo
+
+        // Troca o sinal de TODOS os telões conectados sem derrubar a conexão (estilo OBS)
+        function updateTracksForPeers(stream) {
+            currentStream = stream;
+            videoElement.srcObject = stream;
+
+            const videoTrack = stream.getVideoTracks()[0];
+            const audioTrack = stream.getAudioTracks()[0];
+
+            Object.values(peerConnections).forEach(pc => {
+                const senders = pc.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+
+                if (videoSender && videoTrack) videoSender.replaceTrack(videoTrack);
+                if (audioSender && audioTrack) audioSender.replaceTrack(audioTrack);
+            });
+        }
+
+        // 🎥 Fonte: Câmera
+        function startCamera() {
+            if (fileVideoElement) { fileVideoElement.pause(); }
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                .then(stream => { updateTracksForPeers(stream); })
+                .catch(err => alert('Erro ao acessar câmera: ' + err));
+        }
+
+        // 💻 Fonte: Compartilhar Janela/Tela
+        function startScreenShare() {
+            if (fileVideoElement) { fileVideoElement.pause(); }
+            navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+                .then(stream => { updateTracksForPeers(stream); })
+                .catch(err => console.log('Compartilhamento cancelado'));
+        }
+
+        // 📁 Fonte: Arquivo de Vídeo Local (MP4, etc.)
+        function handleVideoFile(file) {
+            if (!file) return;
+            if (fileVideoElement) { fileVideoElement.pause(); }
+
+            fileVideoElement = document.createElement('video');
+            fileVideoElement.src = URL.createObjectURL(file);
+            fileVideoElement.muted = true;
+            fileVideoElement.loop = true;
+            fileVideoElement.play();
+
+            fileVideoElement.onplaying = () => {
+                // Captura o fluxo do vídeo rodando localmente
+                const stream = fileVideoElement.captureStream ? fileVideoElement.captureStream() : fileVideoElement.mozCaptureStream();
+                updateTracksForPeers(stream);
+            };
+        }
+
+        // Inicializa com a câmera padrão e anuncia que é o transmissor
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
+                currentStream = stream;
                 videoElement.srcObject = stream;
                 socket.emit('broadcaster');
+            })
+            .catch(err => console.error('Erro ao acessar hardware:', err));
 
-                socket.on('watcher', id => {
-                    const peerConnection = new RTCPeerConnection(config);
-                    peerConnections[id] = peerConnection;
-                    stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+        // Conexão WebRTC para cada telão que entra
+        socket.on('watcher', id => {
+            const peerConnection = new RTCPeerConnection(config);
+            peerConnections[id] = peerConnection;
 
-                    peerConnection.onicecandidate = event => {
-                        if (event.candidate) socket.emit('candidate', id, event.candidate);
-                    };
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => peerConnection.addTrack(track, currentStream));
+            }
 
-                    peerConnection.createOffer()
-                        .then(sdp => peerConnection.setLocalDescription(sdp))
-                        .then(() => {
-                            socket.emit('offer', id, peerConnection.localDescription);
-                        });
-                });
+            peerConnection.onicecandidate = event => {
+                if (event.candidate) socket.emit('candidate', id, event.candidate);
+            };
 
-                socket.on('answer', (id, description) => { peerConnections[id].setRemoteDescription(description); });
-                socket.on('candidate', (id, candidate) => { peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate)); });
-            }).catch(error => console.error('Erro ao acessar hardware:', error));
+            peerConnection.createOffer()
+                .then(sdp => peerConnection.setLocalDescription(sdp))
+                .then(() => { socket.emit('offer', id, peerConnection.localDescription); });
+        });
 
-        // Funções do Menu Interativo
-        function changeScene(sceneType) {
-            socket.emit('switch-scene', sceneType);
-        }
+        socket.on('answer', (id, description) => { peerConnections[id].setRemoteDescription(description); });
+        socket.on('candidate', (id, candidate) => { peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate)); });
 
-        function sendOverlay() {
-            const text = document.getElementById('overlayText').value;
-            socket.emit('send-overlay', { text: text, action: 'show' });
-        }
+        // Limpa a conexão quando um telão sai
+        socket.on('peer-left', id => {
+            if (peerConnections[id]) { peerConnections[id].close(); delete peerConnections[id]; }
+        });
 
-        function clearOverlay() {
-            document.getElementById('overlayText').value = '';
-            socket.emit('send-overlay', { action: 'clear' });
-        }
+        // Funções do Menu
+        function changeScene(sceneType) { socket.emit('switch-scene', sceneType); }
+        function sendOverlay() { socket.emit('send-overlay', { text: document.getElementById('overlayText').value, action: 'show' }); }
+        function clearOverlay() { document.getElementById('overlayText').value = ''; socket.emit('send-overlay', { action: 'clear' }); }
 
         // ---- Gerar / copiar o link do telão ----
         const ipSelect = document.getElementById('ipSelect');
@@ -212,7 +276,6 @@
                 const info = await (await fetch('/info')).json();
                 const ips = info.ips || [];
                 if (ips.length === 0) {
-                    // Sem IP de rede detectado: usa o host atual como fallback
                     linkInput.value = `${location.origin}/receive.html`;
                     return;
                 }
@@ -223,7 +286,6 @@
                     opt.textContent = ip;
                     ipSelect.appendChild(opt);
                 });
-                // Mostra o seletor só quando há mais de um IP (ex: Wi-Fi + cabo)
                 ipSelect.style.display = ips.length > 1 ? 'block' : 'none';
                 ipSelect.value = ips[0];
                 ipSelect.onchange = montarLink;
