@@ -102,9 +102,13 @@
             background: radial-gradient(circle at 50% 30%, #0a5bb0 0%, #00448A 50%, #002e5e 100%);
             color: #fff; align-items: center; justify-content: center; overflow: hidden;
         }
-        #tela-principal .fundo-base { text-align: center; z-index: 1; }
-        #tela-principal .fundo-base h1 { color: var(--amarelo-ub); font-size: 5vw; font-weight: 900; text-transform: uppercase; margin: 0; }
-        #tela-principal .fundo-base p { font-size: 2vw; opacity: .85; }
+        #tela-principal .estrela { position: absolute; top: 3vh; right: 3vw; font-size: 20vw; line-height: 1; color: rgba(255,237,0,0.08); z-index: 0; pointer-events: none; }
+        #tela-principal .fundo-base { text-align: center; z-index: 1; position: relative; padding: 0 6vw; }
+        #tela-principal .barra { width: 7vw; height: 0.7vh; min-height: 5px; background: var(--amarelo-ub); border-radius: 4px; margin: 0 auto 3vh; }
+        #tela-principal .fundo-base h1 { color: var(--amarelo-ub); font-size: 5.5vw; font-weight: 900; text-transform: uppercase; margin: 0; line-height: 1.05; }
+        #tela-principal .slogan { font-size: 2.2vw; opacity: .9; margin: 1.5vh 0 0; letter-spacing: 1px; }
+        #tela-principal .lideres { margin-top: 5vh; font-size: 1.8vw; font-weight: 700; }
+        #tela-principal .lideres b { color: var(--amarelo-ub); }
         #fundo-img, #fundo-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2; }
     </style>
 </head>
@@ -141,9 +145,12 @@
     </div>
 
     <div id="tela-principal">
+        <div class="estrela">★</div>
         <div class="fundo-base">
+            <div class="barra"></div>
             <h1 id="principal-titulo">PLENÁRIA UNIÃO BRASIL</h1>
-            <p>União que Constrói</p>
+            <p class="slogan">União que Constrói</p>
+            <div class="lideres"><b>Clécio Luís</b> &nbsp;•&nbsp; <b>Alliny Serrão</b> &nbsp;•&nbsp; <b>Teddy Maciel</b></div>
         </div>
         <img id="fundo-img" src="img/fundo.png" alt="" onerror="this.style.display='none'">
         <video id="fundo-video" loop muted playsinline style="display:none">
