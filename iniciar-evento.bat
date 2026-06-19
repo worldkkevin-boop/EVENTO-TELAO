@@ -9,6 +9,13 @@ echo ==================================================
 echo   SERVIDOR DO TELAO (conectado a nuvem)
 echo ==================================================
 echo.
+
+REM Encerra qualquer servidor antigo que ainda esteja usando a porta 3000
+echo Liberando a porta 3000 (se houver servidor antigo)...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
+timeout /t 1 >nul
+
+echo.
 echo   Painel:  http://localhost:3000/transmit.html
 echo   Telao:   http://localhost:3000/receive.html?t=1
 echo.
