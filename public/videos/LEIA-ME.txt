@@ -1,0 +1,20 @@
+VÍDEOS PRONTOS
+==============
+
+Coloque aqui os vídeos do evento (formatos: .mp4, .webm, .mov, .m4v).
+
+Exemplos:
+    institucional.mp4
+    chamada-clecio.mp4
+    abertura.mp4
+
+Como funciona:
+- No painel, módulo "🎞️ Vídeos Prontos", clique em 🔄 para atualizar a lista.
+- Cada vídeo tem os botões Todos / T1 / T2 / T3 → toca DIRETO no telão escolhido.
+- Os vídeos tocam nativamente no telão (sem WebRTC) — leve, sem travar, e com áudio.
+- Como ficam em disco, NÃO somem quando você dá F5.
+- Dá pra tocar vídeos DIFERENTES em telões diferentes ao mesmo tempo.
+- "Loop" no painel faz repetir; sem loop, ao acabar volta pra Tela Principal.
+
+Dica: o telão precisa de 1 clique na tela (qualquer lugar) pra liberar o áudio
+(regra dos navegadores). Depois disso, os vídeos tocam com som.

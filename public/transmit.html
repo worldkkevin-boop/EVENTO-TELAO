@@ -154,40 +154,13 @@
 
             <div class="module-box">
                 <h4 class="module-title">🎞️ Vídeos Prontos</h4>
-                <p style="font-size:0.72rem; color:#8892b0; margin:0 0 8px;">Carregue (📁) e toque com 1 clique no destino.</p>
-
-                <div style="border:1px solid #333; border-radius:6px; padding:8px; margin-bottom:8px;">
-                    <input type="file" accept="video/*" id="slotFile0" style="display:none" onchange="carregarSlot(0, this.files[0])">
-                    <button onclick="document.getElementById('slotFile0').click()" style="background:#5c2d91; margin:0;">📁 <span id="slotNome0">Vídeo 1</span></button>
-                    <div style="display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:4px; margin-top:5px;">
-                        <button style="margin:0; background:var(--success);" onclick="tocarSlot(0,'todos')">Todos</button>
-                        <button style="margin:0;" onclick="tocarSlot(0,'1')">T1</button>
-                        <button style="margin:0;" onclick="tocarSlot(0,'2')">T2</button>
-                        <button style="margin:0;" onclick="tocarSlot(0,'3')">T3</button>
-                    </div>
+                <p style="font-size:0.72rem; color:#8892b0; margin:0 0 8px;">Coloque os vídeos na pasta <b>public/videos/</b>. Tocam direto no telão (sem travar) e não somem no F5.</p>
+                <div style="display:flex; gap:5px; margin-bottom:8px;">
+                    <button id="btnLoopPreset" onclick="toggleLoopPreset()" style="background:#444; margin:0;">🔁 Loop: Desligado</button>
+                    <button onclick="carregarListaVideos()" style="background:#333; margin:0; width:auto; padding:0 14px;">🔄</button>
                 </div>
-
-                <div style="border:1px solid #333; border-radius:6px; padding:8px; margin-bottom:8px;">
-                    <input type="file" accept="video/*" id="slotFile1" style="display:none" onchange="carregarSlot(1, this.files[0])">
-                    <button onclick="document.getElementById('slotFile1').click()" style="background:#5c2d91; margin:0;">📁 <span id="slotNome1">Vídeo 2</span></button>
-                    <div style="display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:4px; margin-top:5px;">
-                        <button style="margin:0; background:var(--success);" onclick="tocarSlot(1,'todos')">Todos</button>
-                        <button style="margin:0;" onclick="tocarSlot(1,'1')">T1</button>
-                        <button style="margin:0;" onclick="tocarSlot(1,'2')">T2</button>
-                        <button style="margin:0;" onclick="tocarSlot(1,'3')">T3</button>
-                    </div>
-                </div>
-
-                <div style="border:1px solid #333; border-radius:6px; padding:8px;">
-                    <input type="file" accept="video/*" id="slotFile2" style="display:none" onchange="carregarSlot(2, this.files[0])">
-                    <button onclick="document.getElementById('slotFile2').click()" style="background:#5c2d91; margin:0;">📁 <span id="slotNome2">Vídeo 3</span></button>
-                    <div style="display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:4px; margin-top:5px;">
-                        <button style="margin:0; background:var(--success);" onclick="tocarSlot(2,'todos')">Todos</button>
-                        <button style="margin:0;" onclick="tocarSlot(2,'1')">T1</button>
-                        <button style="margin:0;" onclick="tocarSlot(2,'2')">T2</button>
-                        <button style="margin:0;" onclick="tocarSlot(2,'3')">T3</button>
-                    </div>
-                </div>
+                <div id="listaVideos"></div>
+                <button class="btn-danger" onclick="pararVideo('todos')" style="margin-top:6px;">⏹️ Parar Vídeo (todos)</button>
             </div>
 
             <div class="module-box" style="flex: 2;">
@@ -425,18 +398,45 @@
             };
         }
 
-        // --- VÍDEOS PRONTOS (3 slots) ---
-        const slots = [null, null, null];
-        function carregarSlot(i, file) {
-            if (!file) return;
-            slots[i] = file;
-            const nome = file.name.length > 18 ? file.name.slice(0, 16) + '…' : file.name;
-            document.getElementById('slotNome' + i).innerText = nome;
+        // --- VÍDEOS PRONTOS (da pasta public/videos, tocam direto no telão) ---
+        async function carregarListaVideos() {
+            const div = document.getElementById('listaVideos');
+            try {
+                const data = await (await fetch('/videos')).json();
+                div.innerHTML = '';
+                if (!data.videos || !data.videos.length) {
+                    div.innerHTML = '<p style="font-size:0.75rem; color:#8892b0;">Nenhum vídeo em public/videos/</p>';
+                    return;
+                }
+                data.videos.forEach(file => {
+                    const box = document.createElement('div');
+                    box.style.cssText = 'border:1px solid #333; border-radius:6px; padding:8px; margin-bottom:8px;';
+                    const nome = document.createElement('div');
+                    nome.innerText = file;
+                    nome.style.cssText = 'font-size:0.8rem; margin-bottom:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+                    const row = document.createElement('div');
+                    row.style.cssText = 'display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:4px;';
+                    [['Todos', 'todos'], ['T1', '1'], ['T2', '2'], ['T3', '3']].forEach(([label, t], idx) => {
+                        const b = document.createElement('button');
+                        b.innerText = label;
+                        b.style.cssText = 'margin:0;' + (idx === 0 ? 'background:var(--success);' : '');
+                        b.onclick = () => tocarVideoNuvem(file, t);
+                        row.appendChild(b);
+                    });
+                    box.appendChild(nome); box.appendChild(row); div.appendChild(box);
+                });
+            } catch (e) { div.innerHTML = '<p style="font-size:0.75rem; color:#8892b0;">Erro ao listar vídeos.</p>'; }
         }
-        function tocarSlot(i, target) {
-            if (!slots[i]) { alert('Carregue um vídeo no Slot ' + (i + 1) + ' primeiro (botão 📁).'); return; }
-            handleVideoFile(slots[i], target);
+        function tocarVideoNuvem(file, target) { socket.emit('play-video', { file, target, loop: loopVideo }); }
+        function pararVideo(target) { socket.emit('stop-video', target); }
+        function toggleLoopPreset() {
+            loopVideo = !loopVideo;
+            const b = document.getElementById('btnLoopPreset');
+            b.innerText = '🔁 Loop: ' + (loopVideo ? 'Ligado' : 'Desligado');
+            b.style.background = loopVideo ? 'var(--success)' : '#444';
+            if (fileVideoElement) fileVideoElement.loop = loopVideo;
         }
+        carregarListaVideos();
 
         function formatTime(seconds) {
             if (isNaN(seconds)) return "00:00";

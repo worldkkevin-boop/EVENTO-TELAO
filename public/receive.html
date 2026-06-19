@@ -134,6 +134,9 @@
         #tela-principal .lideres { margin-top: 5vh; font-size: 1.8vw; font-weight: 700; }
         #tela-principal .lideres b { color: var(--amarelo-ub); }
         #fundo-img, #fundo-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 2; }
+
+        /* Player nativo dos vídeos prontos (toca direto, sem WebRTC) */
+        #tela-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; z-index: 100; display: none; }
     </style>
 </head>
 <body>
@@ -199,6 +202,8 @@
         </video>
     </div>
 
+    <video id="tela-video" playsinline></video>
+
     <script>
         // ID do telão pela URL (ex: receive.html?t=1)
         const params = new URLSearchParams(window.location.search);
@@ -215,7 +220,7 @@
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
         // Tocar na tela libera o áudio no celular
-        document.body.addEventListener('click', () => { videoElement.muted = false; });
+        document.body.addEventListener('click', () => { videoElement.muted = false; document.getElementById('tela-video').muted = false; });
 
         // ANÚNCIOS L-SHAPE (arte única encaixando o vídeo no buraco)
         socket.on('toggle-ads', (startAds) => {
@@ -226,8 +231,12 @@
         const fundoVideo = document.getElementById('fundo-video');
         fundoVideo.addEventListener('loadeddata', () => { fundoVideo.style.display = 'block'; });
 
+        const telaVideo = document.getElementById('tela-video');
+
         // CENAS
         socket.on('scene-switched', (scene) => {
+            // Trocar de cena para/esconde o vídeo pronto
+            telaVideo.pause(); telaVideo.style.display = 'none';
             document.getElementById('tela-presenca').style.display = (scene === 'presenca') ? 'flex' : 'none';
             document.getElementById('tela-principal').style.display = (scene === 'principal') ? 'flex' : 'none';
             if (scene === 'principal') { fundoVideo.play().catch(() => {}); }
@@ -235,6 +244,25 @@
             if (scene === 'black') videoElement.style.opacity = '0';
             if (scene === 'camera') videoElement.style.opacity = '1';
         });
+
+        // VÍDEOS PRONTOS (tocam direto no telão, sem WebRTC)
+        socket.on('play-video', (data) => {
+            telaVideo.src = '/videos/' + data.file;
+            telaVideo.loop = !!data.loop;
+            telaVideo.currentTime = 0;
+            telaVideo.muted = false;
+            telaVideo.style.display = 'block';
+            const p = telaVideo.play();
+            if (p) p.catch(() => { telaVideo.muted = true; telaVideo.play().catch(() => {}); });
+        });
+        socket.on('stop-video', () => { telaVideo.pause(); telaVideo.style.display = 'none'; });
+        telaVideo.onended = () => {
+            if (telaVideo.loop) return;
+            telaVideo.style.display = 'none';
+            // ao acabar (sem loop), volta pra Tela Principal
+            document.getElementById('tela-principal').style.display = 'flex';
+            fundoVideo.play().catch(() => {});
+        };
 
         // GC / LETREIRO
         socket.on('overlay-updated', (data) => {

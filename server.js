@@ -1,5 +1,7 @@
 const express = require('express');
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
@@ -22,6 +24,16 @@ function getLocalIPs() {
 // O painel usa esta rota para montar os links dos teloes para outros PCs
 app.get('/info', (req, res) => {
     res.json({ ips: getLocalIPs(), port: PORT, webappUrl: WEBAPP_URL, evento: eventoAtual });
+});
+
+// Lista os vídeos prontos da pasta public/videos
+app.get('/videos', (req, res) => {
+    const dir = path.join(__dirname, 'public', 'videos');
+    let videos = [];
+    try {
+        videos = fs.readdirSync(dir).filter(f => /\.(mp4|webm|mov|m4v|ogg)$/i.test(f));
+    } catch (e) { /* pasta pode nao existir ainda */ }
+    res.json({ videos });
 });
 
 // --- CONTADOR DE PRESENCA ---
@@ -134,6 +146,17 @@ io.on('connection', (socket) => {
     socket.on('toggle-qr', (mostrar) => {
         qrVisivel = !!mostrar;
         io.emit('display-qr', qrVisivel);
+    });
+
+    // Toca um vídeo pronto (da pasta /videos) direto no telão escolhido
+    socket.on('play-video', (data) => {
+        const payload = { file: data.file, loop: !!data.loop };
+        if (data.target === 'todos') socket.broadcast.emit('play-video', payload);
+        else io.to('telao-' + data.target).emit('play-video', payload);
+    });
+    socket.on('stop-video', (target) => {
+        if (target === 'todos') socket.broadcast.emit('stop-video');
+        else io.to('telao-' + target).emit('stop-video');
     });
 
     // Posição/tamanho do contador e do QR no telão
