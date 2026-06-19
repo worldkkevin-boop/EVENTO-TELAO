@@ -51,11 +51,24 @@
 
         /* Área de Pré-visualização do Vídeo */
         #video-panel {
-            flex: 1; background: #000; border-radius: 8px; border: 1px solid var(--border);
-            display: flex; flex-direction: column; position: relative; overflow: hidden;
-            transition: all 0.3s ease;
+            flex: 1; display: flex; flex-direction: column; gap: 10px;
+            overflow: hidden; transition: all 0.3s ease; min-width: 0;
+        }
+        .src-monitor {
+            position: relative; flex: 1.3; background: #000; border-radius: 8px;
+            border: 1px solid var(--border); overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
         }
         #localVideo { width: 100%; height: 100%; object-fit: contain; }
+        .rotulo { position: absolute; top: 6px; left: 8px; font-size: 0.7rem; color: #cfd6e4; background: rgba(0,0,0,0.55); padding: 2px 7px; border-radius: 4px; z-index: 6; }
+        #standby { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #8892b0; gap: 6px; text-align: center; }
+        #standby span { font-size: 2.8rem; }
+
+        /* MULTIVIEW: prévia ao vivo dos 3 telões */
+        .multiview { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; min-height: 0; }
+        .mv { position: relative; background: #000; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        .mv .mv-label { position: absolute; top: 4px; left: 6px; z-index: 5; font-size: 0.7rem; font-weight: bold; color: #fff; background: rgba(0,68,138,0.9); padding: 2px 7px; border-radius: 4px; }
+        .mv iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: none; }
 
         /* GC Falso na Prévia */
         #local-overlay {
@@ -275,8 +288,17 @@
         </div>
 
         <div id="video-panel">
-            <video id="localVideo" autoplay playsinline muted></video>
-            <div id="local-overlay">Nome de Teste</div>
+            <div class="src-monitor">
+                <div class="rotulo">FONTE (o que vai ser enviado)</div>
+                <video id="localVideo" autoplay playsinline muted></video>
+                <div id="local-overlay">Nome de Teste</div>
+                <div id="standby"><span>💤</span><strong>STANDBY</strong><div style="font-size:0.85rem;">Escolha uma fonte (Câmera / Tela / Vídeo)</div></div>
+            </div>
+            <div class="multiview">
+                <div class="mv"><div class="mv-label">TELÃO 1</div><iframe src="receive.html?t=1"></iframe></div>
+                <div class="mv"><div class="mv-label">TELÃO 2</div><iframe src="receive.html?t=2"></iframe></div>
+                <div class="mv"><div class="mv-label">TELÃO 3</div><iframe src="receive.html?t=3"></iframe></div>
+            </div>
         </div>
 
     </div>
@@ -311,6 +333,8 @@
         function updateStream(stream) {
             currentStream = stream;
             videoElement.srcObject = stream;
+            const sb = document.getElementById('standby'); if (sb) sb.style.display = 'none';
+            let faltaSender = false;
             Object.values(peerConnections).forEach(pc => {
                 const videoTrack = stream.getVideoTracks()[0];
                 const audioTrack = stream.getAudioTracks()[0];
@@ -318,8 +342,11 @@
                 const videoSender = senders.find(s => s.track && s.track.kind === 'video');
                 const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
                 if (videoSender && videoTrack) videoSender.replaceTrack(videoTrack);
+                else if (videoTrack) faltaSender = true; // peer entrou sem fonte (modo neutro)
                 if (audioSender && audioTrack) audioSender.replaceTrack(audioTrack);
             });
+            // Telões que conectaram sem fonte precisam repegar a imagem (reanúncio)
+            if (faltaSender) socket.emit('broadcaster');
         }
 
         // Lista as câmeras disponíveis no seletor (rótulos aparecem após dar permissão)
@@ -662,11 +689,9 @@
             }
         }
 
-        // Inicia a câmera automaticamente e reanuncia quando a fonte estiver pronta
-        // (garante que telões que conectaram cedo recebam a imagem — evita tela preta).
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then(stream => { updateStream(stream); listCameras(); socket.emit('broadcaster'); })
-            .catch(err => { console.error(err); alert('Câmera indisponível — escolha uma fonte (Tela/Vídeo).'); });
+        // Começa NEUTRO: não puxa a câmera sozinho. A prévia fica em STANDBY até
+        // você escolher uma fonte (Câmera / Tela / Vídeo). Os telões ficam na Tela Principal.
+        listCameras();
     </script>
 </body>
 </html>
