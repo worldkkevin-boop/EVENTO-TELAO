@@ -29,20 +29,44 @@
         /* ARTE DE FUNDO (Full HD 1920x1080 com buraco transparente).
            Fica por cima do vídeo; só aparece no modo anúncio.
            Se a imagem faltar, mostra o azul União como reserva. */
-        #lshape-art {
-            position: absolute; inset: 0; width: 100%; height: 100%;
-            background: var(--azul-ub) url('img/lshape-fundo.png') center / 100% 100% no-repeat;
-            z-index: 20; opacity: 0; pointer-events: none;
-            transform: translateX(14%); /* começa deslocado pra fora (canto direito) */
-            transition: opacity 0.55s ease, transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+        /* L-SHAPE montado em código: barra de líderes (direita) + faixa (embaixo) */
+        #lshape-side, #lshape-bottom {
+            position: absolute; z-index: 20; opacity: 0;
+            transition: opacity 0.5s ease, transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
         }
+        /* Barra dos líderes: lateral direita, altura toda */
+        #lshape-side {
+            top: 0; bottom: 0; left: var(--hole-width); right: 0;
+            background: linear-gradient(160deg, #0a5bb0 0%, #00448A 60%, #002e5e 100%);
+            border-left: 0.4vw solid var(--amarelo-ub);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vh; padding: 2vh 0.6vw;
+            transform: translateX(100%); /* entra da direita */
+        }
+        /* Faixa inferior: embaixo do vídeo (largura do vídeo) */
+        #lshape-bottom {
+            left: 0; width: var(--hole-width); top: var(--hole-height); bottom: 0;
+            background: var(--amarelo-ub); color: var(--azul-ub);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.4vw; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; text-align: center;
+            transform: translateY(100%); /* sobe de baixo */
+        }
+        /* Cartões dos líderes */
+        .ls-card { text-align: center; color: #fff; }
+        .ls-foto {
+            width: 8vw; height: 8vw; border-radius: 50%; border: 0.3vw solid var(--amarelo-ub);
+            background: #1b3a63 center / cover no-repeat; margin: 0 auto;
+            display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 2.4vw;
+        }
+        .ls-nome { font-weight: 800; font-size: 1.35vw; margin-top: 0.8vh; }
+        .ls-cargo { font-size: 0.95vw; opacity: .85; }
 
-        /* MODO ANÚNCIO ATIVO: vídeo encolhe pro canto e o anúncio desliza de fora */
+        /* MODO ANÚNCIO ATIVO: vídeo encolhe e os painéis deslizam pra dentro */
         body.ads-active #video-wrapper {
             top: var(--hole-top); left: var(--hole-left);
             width: var(--hole-width); height: var(--hole-height);
         }
-        body.ads-active #lshape-art { opacity: 1; transform: translateX(0); }
+        body.ads-active #lshape-side { opacity: 1; transform: translateX(0); }
+        body.ads-active #lshape-bottom { opacity: 1; transform: translateY(0); }
 
         /* IDENTIFICADOR DE TELÃO (some após 5s) */
         #id-telao { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: var(--amarelo-ub); padding: 10px; border-radius: 5px; font-weight: bold; z-index: 300; }
@@ -118,7 +142,24 @@
         <video id="remoteVideo" autoplay playsinline muted onclick="this.muted = !this.muted"></video>
     </div>
 
-    <div id="lshape-art"></div>
+    <div id="lshape-side">
+        <div class="ls-card">
+            <div class="ls-foto" style="background-image:url('img/clecio.jpg')">CL</div>
+            <div class="ls-nome">Clécio Luís</div>
+            <div class="ls-cargo">Governador</div>
+        </div>
+        <div class="ls-card">
+            <div class="ls-foto" style="background-image:url('img/alliny.jpg')">AS</div>
+            <div class="ls-nome">Alliny Serrão</div>
+            <div class="ls-cargo">Deputada Estadual</div>
+        </div>
+        <div class="ls-card">
+            <div class="ls-foto" style="background-image:url('img/davi.jpg')">DA</div>
+            <div class="ls-nome">Davi Alcolumbre</div>
+            <div class="ls-cargo">Senador</div>
+        </div>
+    </div>
+    <div id="lshape-bottom">UNIÃO BRASIL: A FORÇA DO AMAPÁ</div>
 
     <div id="id-telao">Carregando...</div>
     <div id="contador-telao">Presentes: <span id="num-contador">0000</span></div>

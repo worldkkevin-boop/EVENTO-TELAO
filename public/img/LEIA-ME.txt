@@ -1,29 +1,16 @@
-ARTE DO L-SHAPE (anúncio) — INSTRUÇÕES PRO DESIGNER
+FOTOS DOS LÍDERES (L-SHAPE / anúncio)
 ====================================================
+O L-Shape agora é montado no código (barra azul à direita + faixa amarela
+embaixo). Só faltam as FOTOS dos líderes. Salve aqui com estes nomes EXATOS:
 
-Salve a arte final AQUI com este nome EXATO:
+    clecio.jpg   -> Clécio Luís (Governador)
+    alliny.jpg   -> Alliny Serrão (Deputada Estadual)
+    davi.jpg     -> Davi Alcolumbre (Senador)
 
-    lshape-fundo.png   (ou .jpg)
-
-Especificações da arte:
-- Tamanho: 1920 x 1080 px (Full HD, 16:9).
-- Deixe um BURACO TRANSPARENTE (PNG) onde o vídeo da câmera vai encaixar.
-- Geometria do buraco (canto superior esquerdo):
-      X: de 0 até 1498 px   (largura ~78% = 1498 px)
-      Y: de 0 até 929 px    (altura  ~86% = 929 px)
-  Ou seja, o retângulo transparente vai de (0,0) até (1498, 929).
-
-- Espaço para a arte (fotos dos líderes, letreiro, bandeiras):
-      Faixa LATERAL direita:  X de 1498 a 1920 (≈ 422 px de largura) x altura toda
-      Faixa INFERIOR:         Y de 929 a 1080  (≈ 151 px de altura)  x largura do vídeo
-
-Dica: coloque as fotos de Clécio, Alliny e Teddy na faixa lateral, e o
-slogan "União que Constrói" na faixa inferior.
-
-Se quiser outras proporções, me avise os 4 valores do buraco que eu ajusto
-no receive.html (variáveis --hole-top / --hole-left / --hole-width / --hole-height).
-
-Enquanto a arte não chega, o L-Shape mostra um fundo azul União como reserva.
+- Use fotos quadradas (ex: 400x400) pra ficarem bem no círculo.
+- Sem a foto, aparecem as iniciais (CL / AS / DA) no círculo azul.
+- A frase da faixa inferior ("UNIÃO BRASIL: A FORÇA DO AMAPÁ") está no código;
+  me avise se quiser trocar.
 
 ----------------------------------------------------
 QR CODE (para o telão)
