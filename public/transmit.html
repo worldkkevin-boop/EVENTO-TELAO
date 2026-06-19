@@ -197,8 +197,13 @@
                     <span id="painel-contador" style="font-size:2.2rem; font-weight:900; color:var(--amarelo-ub); display:inline-block;">0</span>
                 </div>
                 <div class="grid-2">
-                    <button style="background: var(--success); margin: 0;" onclick="toggleContador(true)">Mostrar</button>
-                    <button style="background: #888; margin: 0;" onclick="toggleContador(false)">Esconder</button>
+                    <button style="background: var(--success); margin: 0;" onclick="toggleContador(true)">Mostrar nº</button>
+                    <button style="background: #888; margin: 0;" onclick="toggleContador(false)">Esconder nº</button>
+                </div>
+                <label style="font-size: 0.8rem; display: block; margin: 10px 0 5px;">QR Code no telão:</label>
+                <div class="grid-2">
+                    <button style="background: var(--success); margin: 0;" onclick="toggleQr(true)">Mostrar QR</button>
+                    <button style="background: #888; margin: 0;" onclick="toggleQr(false)">Esconder QR</button>
                 </div>
                 <button class="btn-action" onclick="copyPresencaLink()" style="margin-top: 8px;">📲 Copiar Link de Presença</button>
                 <a href="/presencas.csv" download style="text-decoration:none;"><button style="margin-top: 5px;">⬇️ Baixar Lista (CSV)</button></a>
@@ -501,6 +506,7 @@
         function triggerAds() { socket.emit('start-ads', document.getElementById('adsDuration').value); }
         function stopAds() { socket.emit('stop-ads'); }
         function toggleContador(mostrar) { socket.emit('toggle-contador', mostrar); }
+        function toggleQr(mostrar) { socket.emit('toggle-qr', mostrar); }
         function resetContador() {
             if (confirm('Tem certeza que quer ZERAR a contagem e apagar a lista de presenças? Não dá pra desfazer.')) {
                 socket.emit('reset-contador');

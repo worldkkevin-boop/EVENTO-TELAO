@@ -24,3 +24,16 @@ Se quiser outras proporções, me avise os 4 valores do buraco que eu ajusto
 no receive.html (variáveis --hole-top / --hole-left / --hole-width / --hole-height).
 
 Enquanto a arte não chega, o L-Shape mostra um fundo azul União como reserva.
+
+----------------------------------------------------
+QR CODE (para o telão)
+----------------------------------------------------
+Salve a imagem do QR Code AQUI com este nome EXATO:
+
+    qrcode.png
+
+- Gere o QR apontando para o link de presença da nuvem
+  (botão "Copiar Link de Presença" no painel já dá o link com o nome do evento).
+- No painel, use "Mostrar QR" / "Esconder QR" pra ligar/desligar no telão.
+- Tamanho sugerido: 400x400 px (quadrado).
+

@@ -28,6 +28,7 @@ app.get('/info', (req, res) => {
 let contadorPresencas = 0;
 let listaPresencas = []; // { nome, whatsapp, hora }
 let contadorVisivel = false; // lembra se o contador esta na tela
+let qrVisivel = false; // lembra se o QR Code esta na tela
 
 // Integração com a nuvem (Web App do Apps Script). Conta SÓ o evento atual.
 // WEBAPP_URL = a URL .../exec (base). EVENTO = nome do evento (opcional, define o filtro).
@@ -124,6 +125,12 @@ io.on('connection', (socket) => {
         io.emit('display-contador', contadorVisivel);
     });
 
+    // Liga/desliga o QR Code em todos os teloes (e lembra o estado)
+    socket.on('toggle-qr', (mostrar) => {
+        qrVisivel = !!mostrar;
+        io.emit('display-qr', qrVisivel);
+    });
+
     // Zera a contagem (botao do painel, com confirmacao no front)
     socket.on('reset-contador', () => {
         contadorPresencas = 0;
@@ -143,6 +150,7 @@ io.on('connection', (socket) => {
     // Ao conectar, ja manda o numero atual, o estado de visibilidade e o evento
     socket.emit('atualizar-contador', contadorPresencas);
     socket.emit('display-contador', contadorVisivel);
+    socket.emit('display-qr', qrVisivel);
     socket.emit('evento-atual', eventoAtual);
 
     // --- ANUNCIOS L-SHAPE ---
