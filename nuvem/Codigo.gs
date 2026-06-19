@@ -24,16 +24,27 @@ function getSheet() {
   return sheet;
 }
 
-// Conta as linhas (menos o cabeçalho)
-function totalPresencas() {
-  return Math.max(0, getSheet().getLastRow() - 1);
+// Conta as presenças. Se "evento" vier, conta SÓ as linhas daquele evento.
+function totalPresencas(evento) {
+  const sheet = getSheet();
+  const last = sheet.getLastRow();
+  if (last < 2) return 0;
+  if (!evento) return last - 1; // sem filtro = total geral
+  const eventos = sheet.getRange(2, 1, last - 1, 1).getValues(); // coluna A = Evento
+  let n = 0;
+  const alvo = String(evento).trim();
+  for (let i = 0; i < eventos.length; i++) {
+    if (String(eventos[i][0]).trim() === alvo) n++;
+  }
+  return n;
 }
 
 // Roteia: ?action=count devolve JSON; senão, serve o formulário
 function doGet(e) {
   if (e && e.parameter && e.parameter.action === 'count') {
+    const ev = (e.parameter && e.parameter.evento) ? e.parameter.evento : '';
     return ContentService
-      .createTextOutput(JSON.stringify({ total: totalPresencas() }))
+      .createTextOutput(JSON.stringify({ total: totalPresencas(ev) }))
       .setMimeType(ContentService.MimeType.JSON);
   }
   const tmpl = HtmlService.createTemplateFromFile('index');

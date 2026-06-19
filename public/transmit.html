@@ -184,10 +184,17 @@
                     <button style="background: #888; margin: 0;" onclick="stopAds()">Parar Anúncio</button>
                 </div>
                 <hr style="border-color: #444; margin: 15px 0 10px 0;">
+                <label style="font-size: 0.8rem; display: block; margin-bottom: 5px;">Nome do evento (conta só este):</label>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="eventoInput" placeholder="Ex: Convenção Serrão" style="margin:0;">
+                    <button class="btn-action" style="width:auto; margin:0; padding:0 16px;" onclick="aplicarEvento()">OK</button>
+                </div>
+                <p id="eventoAtualLabel" style="font-size:0.75rem; color:var(--amarelo-ub); margin:4px 0 10px; font-weight:bold;"></p>
+
                 <label style="font-size: 0.8rem; display: block; margin-bottom: 5px;">Contador QR Code:</label>
                 <div style="background:#111; border:1px solid var(--amarelo-ub); border-radius:6px; text-align:center; padding:8px; margin-bottom:8px;">
                     <span style="font-size:0.75rem; color:#8892b0; text-transform:uppercase;">Presentes</span><br>
-                    <span id="painel-contador" style="font-size:2.2rem; font-weight:900; color:var(--amarelo-ub);">0</span>
+                    <span id="painel-contador" style="font-size:2.2rem; font-weight:900; color:var(--amarelo-ub); display:inline-block;">0</span>
                 </div>
                 <div class="grid-2">
                     <button style="background: var(--success); margin: 0;" onclick="toggleContador(true)">Mostrar</button>
@@ -349,10 +356,44 @@
         socket.on('candidate', (id, candidate) => peerConnections[id] && peerConnections[id].addIceCandidate(new RTCIceCandidate(candidate)));
         socket.on('peer-left', id => { if (peerConnections[id]) { peerConnections[id].close(); delete peerConnections[id]; } });
 
-        // Mostra o total de presenças também no painel (atualiza ao vivo)
-        socket.on('atualizar-contador', (total) => {
-            const el = document.getElementById('painel-contador');
-            if (el) el.innerText = total;
+        // Mostra o total de presenças no painel, com animação de rolagem
+        const painelContador = document.getElementById('painel-contador');
+        function animarPainel(destino) {
+            const inicio = parseInt(painelContador.dataset.valor || '0', 10) || 0;
+            destino = parseInt(destino, 10) || 0;
+            painelContador.dataset.valor = destino;
+            if (inicio === destino) { painelContador.innerText = destino; return; }
+            const dur = Math.min(1200, 400 + Math.abs(destino - inicio) * 120);
+            const t0 = performance.now();
+            function frame(t) {
+                const p = Math.min(1, (t - t0) / dur);
+                const eased = 1 - Math.pow(1 - p, 3);
+                painelContador.innerText = Math.round(inicio + (destino - inicio) * eased);
+                if (p < 1) requestAnimationFrame(frame); else painelContador.innerText = destino;
+            }
+            requestAnimationFrame(frame);
+        }
+        socket.on('atualizar-contador', (total) => animarPainel(total));
+
+        // --- NOME DO EVENTO ---
+        let webappUrl = '';
+        let eventoPainel = '';
+        fetch('/info').then(r => r.json()).then(info => {
+            webappUrl = info.webappUrl || '';
+            if (info.evento) {
+                eventoPainel = info.evento;
+                const inp = document.getElementById('eventoInput');
+                if (!inp.value) inp.value = info.evento;
+            }
+        }).catch(() => {});
+
+        function aplicarEvento() {
+            const nome = document.getElementById('eventoInput').value.trim();
+            socket.emit('set-evento', nome);
+        }
+        socket.on('evento-atual', (nome) => {
+            eventoPainel = nome || '';
+            document.getElementById('eventoAtualLabel').innerText = nome ? ('Contando: ' + nome) : 'Contando: TODOS os eventos';
         });
 
         // --- LISTA DA COMITIVA (GC) — salva no navegador ---
@@ -433,10 +474,18 @@
                 .catch(() => prompt('Copie o link do Telão ' + telaoId + ':', url));
         }
         async function copyPresencaLink() {
-            const url = `${await getBaseUrl()}/presenca.html`;
+            let url;
+            const ev = (eventoPainel || document.getElementById('eventoInput').value.trim());
+            if (webappUrl) {
+                // Link da NUVEM (o que vira QR Code), já com o nome do evento
+                url = webappUrl + '?evento=' + encodeURIComponent(ev);
+            } else {
+                // Sem nuvem configurada: usa a página local (apenas testes na rede)
+                url = `${await getBaseUrl()}/presenca.html`;
+            }
             document.getElementById('linkHint').innerText = 'Link de presença: ' + url;
             navigator.clipboard.writeText(url)
-                .then(() => alert('Link de presença copiado:\n' + url + '\n\nUse no QR Code do telão.'))
+                .then(() => alert('Link de presença copiado:\n' + url + '\n\nGere o QR Code com este endereço.'))
                 .catch(() => prompt('Copie o link de presença:', url));
         }
 

@@ -32,18 +32,22 @@ servidor pra cair, sem problema de rede local x 4G.
 - Pode gerar em qualquer site de QR (ex: qr-code-generator) ou pedir pro design.
 
 ## Passo 6 — Ligar o telão na nuvem (no seu notebook)
-A "URL de contagem" é a URL do app da Web + `?action=count`.
+Mais fácil: dê **dois cliques em `iniciar-evento.bat`** (na pasta do projeto).
+Ele pergunta o **nome do evento** e sobe o servidor já conectado à nuvem,
+contando **só aquele evento**.
 
-Inicie o servidor assim (PowerShell, na pasta do projeto):
+Se quiser rodar manualmente (PowerShell):
 
 ```powershell
-$env:PRESENCA_URL = "https://script.google.com/macros/s/XXXX/exec?action=count"
+$env:WEBAPP_URL = "https://script.google.com/macros/s/XXXX/exec"
+$env:EVENTO = "Convenção Serrão"
 node server.js
 ```
 
-Pronto: o servidor passa a puxar o total da nuvem a cada 5s e atualizar os telões.
-Sem a variável `PRESENCA_URL`, o sistema continua funcionando com o contador local
-(página /presenca.html) — útil para testes na própria rede.
+- `WEBAPP_URL` é a URL base do app da Web (sem `?action`).
+- `EVENTO` (opcional) define qual evento contar. Você também pode definir/trocar
+  o evento direto no **painel** (campo "Nome do evento" → OK).
+- Sem `WEBAPP_URL`, o sistema usa o contador local (página /presenca.html) — só testes.
 
 ## Teste rápido
 - Abra a URL do app da Web no celular (pelo 4G), confirme presença.

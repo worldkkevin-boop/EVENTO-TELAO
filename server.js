@@ -21,7 +21,7 @@ function getLocalIPs() {
 
 // O painel usa esta rota para montar os links dos teloes para outros PCs
 app.get('/info', (req, res) => {
-    res.json({ ips: getLocalIPs(), port: PORT });
+    res.json({ ips: getLocalIPs(), port: PORT, webappUrl: WEBAPP_URL, evento: eventoAtual });
 });
 
 // --- CONTADOR DE PRESENCA ---
@@ -29,21 +29,34 @@ let contadorPresencas = 0;
 let listaPresencas = []; // { nome, whatsapp, hora }
 let contadorVisivel = false; // lembra se o contador esta na tela
 
-// Se PRESENCA_URL estiver definida (Web App do Apps Script + "?action=count"),
-// o servidor puxa o total da nuvem a cada 5s e atualiza os teloes.
-const PRESENCA_URL = process.env.PRESENCA_URL || '';
-if (PRESENCA_URL) {
-    console.log('☁️  Contador integrado a nuvem:', PRESENCA_URL);
-    setInterval(async () => {
-        try {
-            const resp = await fetch(PRESENCA_URL);
-            const data = await resp.json();
-            if (typeof data.total === 'number' && data.total !== contadorPresencas) {
-                contadorPresencas = data.total;
-                io.emit('atualizar-contador', contadorPresencas);
-            }
-        } catch (e) { /* rede instavel: tenta de novo no proximo ciclo */ }
-    }, 5000);
+// Integração com a nuvem (Web App do Apps Script). Conta SÓ o evento atual.
+// WEBAPP_URL = a URL .../exec (base). EVENTO = nome do evento (opcional, define o filtro).
+let WEBAPP_URL = process.env.WEBAPP_URL || '';
+if (!WEBAPP_URL && process.env.PRESENCA_URL) WEBAPP_URL = process.env.PRESENCA_URL.split('?')[0];
+let eventoAtual = process.env.EVENTO || '';
+
+function countUrl() {
+    let u = WEBAPP_URL + (WEBAPP_URL.indexOf('?') >= 0 ? '&' : '?') + 'action=count';
+    if (eventoAtual) u += '&evento=' + encodeURIComponent(eventoAtual);
+    return u;
+}
+
+async function pollNuvem() {
+    if (!WEBAPP_URL) return;
+    try {
+        const resp = await fetch(countUrl());
+        const data = await resp.json();
+        if (typeof data.total === 'number' && data.total !== contadorPresencas) {
+            contadorPresencas = data.total;
+            io.emit('atualizar-contador', contadorPresencas);
+        }
+    } catch (e) { /* rede instavel: tenta de novo no proximo ciclo */ }
+}
+
+if (WEBAPP_URL) {
+    console.log('☁️  Contador na nuvem. Evento:', eventoAtual || '(todos)');
+    setInterval(pollNuvem, 5000);
+    pollNuvem();
 }
 
 // Exporta a lista de presencas em CSV (leads do evento)
@@ -119,9 +132,18 @@ io.on('connection', (socket) => {
         io.emit('atualizar-contador', contadorPresencas);
     });
 
-    // Ao conectar, ja manda o numero atual e o estado de visibilidade
+    // Define o evento atual (digitado no painel) -> filtra a contagem da nuvem
+    socket.on('set-evento', (nome) => {
+        eventoAtual = String(nome || '').trim();
+        console.log('🎯 Evento atual:', eventoAtual || '(todos)');
+        io.emit('evento-atual', eventoAtual);
+        pollNuvem(); // atualiza o número na hora
+    });
+
+    // Ao conectar, ja manda o numero atual, o estado de visibilidade e o evento
     socket.emit('atualizar-contador', contadorPresencas);
     socket.emit('display-contador', contadorVisivel);
+    socket.emit('evento-atual', eventoAtual);
 
     // --- ANUNCIOS L-SHAPE ---
     // Ativa o L-Shape por X segundos e desativa sozinho

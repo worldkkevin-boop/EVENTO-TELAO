@@ -48,7 +48,9 @@
 
         /* CONTADOR */
         #contador-telao { position: absolute; top: 20px; right: 20px; background: var(--azul-ub); border: 3px solid var(--amarelo-ub); color: #fff; padding: 15px 30px; font-size: 2rem; font-weight: 900; border-radius: 12px; z-index: 300; display: none; text-transform: uppercase; }
-        #contador-telao span { color: var(--amarelo-ub); font-size: 3rem; }
+        #contador-telao span { color: var(--amarelo-ub); font-size: 3rem; display: inline-block; }
+        @keyframes contador-pop { 0% { transform: scale(1); } 30% { transform: scale(1.3); } 100% { transform: scale(1); } }
+        #contador-telao span.pop { animation: contador-pop .4s ease; }
 
         /* GC / LETREIRO DOS POLÍTICOS (canto inferior esquerdo) */
         #telao-overlay {
@@ -117,8 +119,28 @@
             }
         });
 
-        // CONTADOR
-        socket.on('atualizar-contador', (total) => { document.getElementById('num-contador').innerText = total; });
+        // CONTADOR (com animação de rolagem estilo hodômetro)
+        const numContador = document.getElementById('num-contador');
+        function animarContador(destino) {
+            const inicio = parseInt(numContador.dataset.valor || '0', 10) || 0;
+            destino = parseInt(destino, 10) || 0;
+            numContador.dataset.valor = destino;
+            // Pulso visual a cada atualização
+            numContador.classList.remove('pop'); void numContador.offsetWidth; numContador.classList.add('pop');
+            if (inicio === destino) { numContador.innerText = destino; return; }
+            // Quanto maior o salto, um pouco mais de tempo (limitado)
+            const dur = Math.min(1200, 400 + Math.abs(destino - inicio) * 120);
+            const t0 = performance.now();
+            function frame(t) {
+                const p = Math.min(1, (t - t0) / dur);
+                const eased = 1 - Math.pow(1 - p, 3);
+                numContador.innerText = Math.round(inicio + (destino - inicio) * eased);
+                if (p < 1) requestAnimationFrame(frame);
+                else numContador.innerText = destino;
+            }
+            requestAnimationFrame(frame);
+        }
+        socket.on('atualizar-contador', (total) => animarContador(total));
         socket.on('display-contador', (mostrar) => { document.getElementById('contador-telao').style.display = mostrar ? 'block' : 'none'; });
 
         // WEBRTC
