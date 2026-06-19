@@ -159,6 +159,20 @@
         socket.on('display-contador', (mostrar) => { document.getElementById('contador-telao').style.display = mostrar ? 'block' : 'none'; });
         socket.on('display-qr', (mostrar) => { document.getElementById('qr-telao').style.display = mostrar ? 'block' : 'none'; });
 
+        // POSIÇÃO E TAMANHO (configurado pelo painel)
+        function aplicarCanto(el, corner) {
+            el.style.top = el.style.bottom = el.style.left = el.style.right = 'auto';
+            if (corner.indexOf('top') >= 0) el.style.top = '20px'; else el.style.bottom = '20px';
+            if (corner.indexOf('left') >= 0) el.style.left = '20px'; else el.style.right = '20px';
+            el.style.transformOrigin = corner.replace('-', ' '); // ex: "top right"
+        }
+        socket.on('layout', (cfg) => {
+            const c = document.getElementById('contador-telao');
+            const q = document.getElementById('qr-telao');
+            if (cfg.contador) { aplicarCanto(c, cfg.contador.corner); c.style.transform = 'scale(' + (cfg.contador.size / 100) + ')'; }
+            if (cfg.qr) { aplicarCanto(q, cfg.qr.corner); q.style.transform = 'scale(' + (cfg.qr.size / 100) + ')'; }
+        });
+
         // WEBRTC
         socket.on('offer', (id, description) => {
             peerConnection = new RTCPeerConnection(config);

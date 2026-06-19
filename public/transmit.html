@@ -73,6 +73,7 @@
         button:hover { filter: brightness(1.2); }
         .btn-action { background: var(--azul-ub); }
         input, select { width: 100%; padding: 10px; box-sizing: border-box; background: #111; color: #fff; border: 1px solid #444; border-radius: 4px; margin-bottom: 5px; }
+        input[type=range] { padding: 0; background: transparent; border: none; accent-color: var(--amarelo-ub); }
 
         /* Lista com Scroll Garantido */
         .scrollable-list { max-height: 180px; overflow-y: auto; padding-right: 5px; margin-top: 5px; }
@@ -209,6 +210,30 @@
                 <a href="/presencas.csv" download style="text-decoration:none;"><button style="margin-top: 5px;">⬇️ Baixar Lista (CSV)</button></a>
                 <button style="background: var(--danger); margin-top: 5px;" onclick="resetContador()">🔄 Zerar Contagem</button>
                 <p id="linkHint" style="font-size:0.72rem; color:#8892b0; word-break:break-all; margin:6px 0 0;"></p>
+            </div>
+
+            <div class="module-box">
+                <h4 class="module-title">🖥️ Posição no Telão</h4>
+
+                <label style="font-size:0.8rem; color:#8892b0;">Contador — canto:</label>
+                <select id="cfgContadorCanto" onchange="enviarLayout()">
+                    <option value="top-right">Superior Direito</option>
+                    <option value="top-left">Superior Esquerdo</option>
+                    <option value="bottom-right">Inferior Direito</option>
+                    <option value="bottom-left">Inferior Esquerdo</option>
+                </select>
+                <label style="font-size:0.8rem; color:#8892b0;">Contador — tamanho: <span id="cfgContadorSizeLbl">100%</span></label>
+                <input type="range" id="cfgContadorSize" min="50" max="220" value="100" oninput="enviarLayout()" style="margin-bottom:10px;">
+
+                <label style="font-size:0.8rem; color:#8892b0;">QR Code — canto:</label>
+                <select id="cfgQrCanto" onchange="enviarLayout()">
+                    <option value="bottom-right">Inferior Direito</option>
+                    <option value="bottom-left">Inferior Esquerdo</option>
+                    <option value="top-right">Superior Direito</option>
+                    <option value="top-left">Superior Esquerdo</option>
+                </select>
+                <label style="font-size:0.8rem; color:#8892b0;">QR Code — tamanho: <span id="cfgQrSizeLbl">100%</span></label>
+                <input type="range" id="cfgQrSize" min="50" max="220" value="100" oninput="enviarLayout()">
             </div>
 
         </div>
@@ -508,6 +533,30 @@
         function stopAds() { socket.emit('stop-ads'); }
         function toggleContador(mostrar) { socket.emit('toggle-contador', mostrar); }
         function toggleQr(mostrar) { socket.emit('toggle-qr', mostrar); }
+
+        // --- POSIÇÃO/TAMANHO NO TELÃO ---
+        function enviarLayout() {
+            const cc = document.getElementById('cfgContadorSize').value;
+            const qz = document.getElementById('cfgQrSize').value;
+            document.getElementById('cfgContadorSizeLbl').innerText = cc + '%';
+            document.getElementById('cfgQrSizeLbl').innerText = qz + '%';
+            socket.emit('set-layout', {
+                contador: { corner: document.getElementById('cfgContadorCanto').value, size: parseInt(cc, 10) },
+                qr: { corner: document.getElementById('cfgQrCanto').value, size: parseInt(qz, 10) }
+            });
+        }
+        socket.on('layout', (cfg) => {
+            if (cfg.contador) {
+                document.getElementById('cfgContadorCanto').value = cfg.contador.corner;
+                document.getElementById('cfgContadorSize').value = cfg.contador.size;
+                document.getElementById('cfgContadorSizeLbl').innerText = cfg.contador.size + '%';
+            }
+            if (cfg.qr) {
+                document.getElementById('cfgQrCanto').value = cfg.qr.corner;
+                document.getElementById('cfgQrSize').value = cfg.qr.size;
+                document.getElementById('cfgQrSizeLbl').innerText = cfg.qr.size + '%';
+            }
+        });
         function resetContador() {
             if (confirm('Tem certeza que quer ZERAR a contagem e apagar a lista de presenças? Não dá pra desfazer.')) {
                 socket.emit('reset-contador');

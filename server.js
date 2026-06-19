@@ -29,6 +29,11 @@ let contadorPresencas = 0;
 let listaPresencas = []; // { nome, whatsapp, hora }
 let contadorVisivel = false; // lembra se o contador esta na tela
 let qrVisivel = false; // lembra se o QR Code esta na tela
+// Posição/tamanho do contador e do QR no telão (configurável pelo painel)
+let layoutTelao = {
+    contador: { corner: 'top-right', size: 100 },
+    qr: { corner: 'bottom-right', size: 100 }
+};
 
 // Integração com a nuvem (Web App do Apps Script). Conta SÓ o evento atual.
 // WEBAPP_URL = a URL .../exec (base). EVENTO = nome do evento (opcional, define o filtro).
@@ -131,6 +136,13 @@ io.on('connection', (socket) => {
         io.emit('display-qr', qrVisivel);
     });
 
+    // Posição/tamanho do contador e do QR no telão
+    socket.on('set-layout', (cfg) => {
+        if (cfg && cfg.contador) layoutTelao.contador = { ...layoutTelao.contador, ...cfg.contador };
+        if (cfg && cfg.qr) layoutTelao.qr = { ...layoutTelao.qr, ...cfg.qr };
+        io.emit('layout', layoutTelao);
+    });
+
     // Zera a contagem (botao do painel, com confirmacao no front)
     socket.on('reset-contador', () => {
         contadorPresencas = 0;
@@ -151,6 +163,7 @@ io.on('connection', (socket) => {
     socket.emit('atualizar-contador', contadorPresencas);
     socket.emit('display-contador', contadorVisivel);
     socket.emit('display-qr', qrVisivel);
+    socket.emit('layout', layoutTelao);
     socket.emit('evento-atual', eventoAtual);
 
     // --- ANUNCIOS L-SHAPE ---
