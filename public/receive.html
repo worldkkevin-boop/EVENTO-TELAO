@@ -247,7 +247,7 @@
 
         // VÍDEOS PRONTOS (tocam direto no telão, sem WebRTC)
         socket.on('play-video', (data) => {
-            telaVideo.src = '/videos/' + data.file;
+            telaVideo.src = '/videos/' + encodeURIComponent(data.file);
             telaVideo.loop = !!data.loop;
             telaVideo.currentTime = 0;
             telaVideo.muted = false;
@@ -334,6 +334,10 @@
         // Quando um transmissor (re)aparece, pede a imagem de novo — evita ficar preto após restart
         socket.on('broadcaster', () => { socket.emit('watcher', myTelaoId); });
         socket.on('disconnectBroadcaster', () => { if (peerConnection) peerConnection.close(); videoElement.srcObject = null; videoElement.style.opacity = '0'; });
+
+        // Padrão ao abrir / dar F5: mostra a Tela Principal (fundo)
+        document.getElementById('tela-principal').style.display = 'flex';
+        fundoVideo.play().catch(() => {});
     </script>
 </body>
 </html>
