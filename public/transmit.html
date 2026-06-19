@@ -194,7 +194,7 @@
                 <label style="font-size: 0.8rem; display: block; margin-bottom: 5px;">Contador QR Code:</label>
                 <div style="background:#111; border:1px solid var(--amarelo-ub); border-radius:6px; text-align:center; padding:8px; margin-bottom:8px;">
                     <span style="font-size:0.75rem; color:#8892b0; text-transform:uppercase;">Presentes</span><br>
-                    <span id="painel-contador" style="font-size:2.2rem; font-weight:900; color:var(--amarelo-ub); display:inline-block;">0</span>
+                    <span id="painel-contador" style="font-size:2.2rem; font-weight:900; color:var(--amarelo-ub); display:inline-block; font-variant-numeric:tabular-nums; letter-spacing:2px;">0000</span>
                 </div>
                 <div class="grid-2">
                     <button style="background: var(--success); margin: 0;" onclick="toggleContador(true)">Mostrar nº</button>
@@ -363,18 +363,19 @@
 
         // Mostra o total de presenças no painel, com animação de rolagem
         const painelContador = document.getElementById('painel-contador');
+        const pad4 = n => String(Math.max(0, n)).padStart(4, '0');
         function animarPainel(destino) {
             const inicio = parseInt(painelContador.dataset.valor || '0', 10) || 0;
             destino = parseInt(destino, 10) || 0;
             painelContador.dataset.valor = destino;
-            if (inicio === destino) { painelContador.innerText = destino; return; }
+            if (inicio === destino) { painelContador.innerText = pad4(destino); return; }
             const dur = Math.min(1200, 400 + Math.abs(destino - inicio) * 120);
             const t0 = performance.now();
             function frame(t) {
                 const p = Math.min(1, (t - t0) / dur);
                 const eased = 1 - Math.pow(1 - p, 3);
-                painelContador.innerText = Math.round(inicio + (destino - inicio) * eased);
-                if (p < 1) requestAnimationFrame(frame); else painelContador.innerText = destino;
+                painelContador.innerText = pad4(Math.round(inicio + (destino - inicio) * eased));
+                if (p < 1) requestAnimationFrame(frame); else painelContador.innerText = pad4(destino);
             }
             requestAnimationFrame(frame);
         }
