@@ -9,7 +9,8 @@ echo ==================================================
 echo   SERVIDOR DO TELAO - UNIAO BRASIL
 echo ==================================================
 echo.
-set /p EVENTO=Digite o NOME DO EVENTO (ou ENTER para contar todos):
+echo   Defina o NOME DO EVENTO no painel (campo "Nome do evento" -^> OK).
+echo   (Evite digitar acentos aqui no terminal - ele estraga o "c cedilha".)
 echo.
 
 REM Encerra qualquer servidor antigo na porta 3000
