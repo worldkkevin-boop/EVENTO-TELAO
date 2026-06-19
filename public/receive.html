@@ -76,6 +76,24 @@
         }
         #qr-telao img { width: 200px; height: 200px; display: block; }
         #qr-telao .qr-cta { color: var(--azul-ub); font-weight: 900; font-size: 1rem; margin-top: 8px; text-transform: uppercase; }
+
+        /* TELA DE PRESENÇA (cena cheia: QR + contador + nomes) */
+        #tela-presenca {
+            position: absolute; inset: 0; z-index: 500; display: none;
+            background: radial-gradient(circle at 72% 18%, #0a5bb0 0%, #00448A 45%, #002e5e 100%);
+            color: #fff; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 4vh 4vw; box-sizing: border-box;
+        }
+        #tela-presenca .pres-titulo { color: var(--amarelo-ub); font-size: 4vw; font-weight: 900; text-transform: uppercase; margin: 0; line-height: 1.05; }
+        #tela-presenca .pres-sub { font-size: 1.6vw; opacity: .85; margin: 1vh 0 4vh; letter-spacing: 1px; }
+        #tela-presenca .pres-corpo { display: flex; align-items: center; justify-content: center; gap: 6vw; }
+        #tela-presenca .pres-num-label { font-size: 2vw; text-transform: uppercase; letter-spacing: 2px; opacity: .9; }
+        #tela-presenca .pres-num { font-size: 14vw; font-weight: 900; color: var(--amarelo-ub); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: 4px; }
+        #tela-presenca .pres-qr { background: #fff; padding: 1.5vw; border-radius: 1.2vw; border: 0.4vw solid var(--amarelo-ub); }
+        #tela-presenca .pres-qr img { width: 22vw; height: 22vw; display: block; }
+        #tela-presenca .pres-qr .cta { color: var(--azul-ub); font-weight: 900; font-size: 1.4vw; margin-top: 0.6vw; text-transform: uppercase; }
+        #tela-presenca .pres-nomes { margin-top: 4vh; font-size: 1.9vw; font-weight: 700; }
+        #tela-presenca .pres-nomes b { color: var(--amarelo-ub); }
     </style>
 </head>
 <body>
@@ -92,6 +110,22 @@
     <div id="qr-telao">
         <img src="img/QRCode_contador.png" alt="QR Code">
         <div class="qr-cta">Confirme sua presença</div>
+    </div>
+
+    <div id="tela-presenca">
+        <h1 class="pres-titulo" id="presenca-titulo">PLENÁRIA UNIÃO BRASIL</h1>
+        <div class="pres-sub">União que Constrói</div>
+        <div class="pres-corpo">
+            <div>
+                <div class="pres-num-label">Presentes</div>
+                <div class="pres-num" id="presenca-num">0000</div>
+            </div>
+            <div class="pres-qr">
+                <img src="img/QRCode_contador.png" alt="QR Code">
+                <div class="cta">Confirme sua presença</div>
+            </div>
+        </div>
+        <div class="pres-nomes"><b>Clécio Luís</b> &nbsp;•&nbsp; <b>Alliny Serrão</b> &nbsp;•&nbsp; <b>Teddy Maciel</b></div>
     </div>
 
     <script>
@@ -119,6 +153,8 @@
 
         // CENAS
         socket.on('scene-switched', (scene) => {
+            const telaP = document.getElementById('tela-presenca');
+            telaP.style.display = (scene === 'presenca') ? 'flex' : 'none';
             if (scene === 'black') videoElement.style.opacity = '0';
             if (scene === 'camera') videoElement.style.opacity = '1';
         });
@@ -135,27 +171,28 @@
 
         // CONTADOR (com animação de rolagem estilo hodômetro)
         const numContador = document.getElementById('num-contador');
+        const presencaNum = document.getElementById('presenca-num');
         const pad4 = n => String(Math.max(0, n)).padStart(4, '0');
-        function animarContador(destino) {
-            const inicio = parseInt(numContador.dataset.valor || '0', 10) || 0;
+        function animarEl(el, destino) {
+            const inicio = parseInt(el.dataset.valor || '0', 10) || 0;
             destino = parseInt(destino, 10) || 0;
-            numContador.dataset.valor = destino;
-            // Pulso visual a cada atualização
-            numContador.classList.remove('pop'); void numContador.offsetWidth; numContador.classList.add('pop');
-            if (inicio === destino) { numContador.innerText = pad4(destino); return; }
-            // Quanto maior o salto, um pouco mais de tempo (limitado)
+            el.dataset.valor = destino;
+            // Pulso visual no badge do contador
+            if (el === numContador) { numContador.classList.remove('pop'); void numContador.offsetWidth; numContador.classList.add('pop'); }
+            if (inicio === destino) { el.innerText = pad4(destino); return; }
             const dur = Math.min(1200, 400 + Math.abs(destino - inicio) * 120);
             const t0 = performance.now();
             function frame(t) {
                 const p = Math.min(1, (t - t0) / dur);
                 const eased = 1 - Math.pow(1 - p, 3);
-                numContador.innerText = pad4(Math.round(inicio + (destino - inicio) * eased));
+                el.innerText = pad4(Math.round(inicio + (destino - inicio) * eased));
                 if (p < 1) requestAnimationFrame(frame);
-                else numContador.innerText = pad4(destino);
+                else el.innerText = pad4(destino);
             }
             requestAnimationFrame(frame);
         }
-        socket.on('atualizar-contador', (total) => animarContador(total));
+        socket.on('atualizar-contador', (total) => { animarEl(numContador, total); animarEl(presencaNum, total); });
+        socket.on('evento-atual', (nome) => { document.getElementById('presenca-titulo').innerText = (nome || 'PLENÁRIA UNIÃO BRASIL').toUpperCase(); });
         socket.on('display-contador', (mostrar) => { document.getElementById('contador-telao').style.display = mostrar ? 'block' : 'none'; });
         socket.on('display-qr', (mostrar) => { document.getElementById('qr-telao').style.display = mostrar ? 'block' : 'none'; });
 

@@ -236,6 +236,18 @@
                 <input type="range" id="cfgQrSize" min="50" max="220" value="100" oninput="enviarLayout()">
             </div>
 
+            <div class="module-box">
+                <h4 class="module-title">📣 Tela de Presença (QR + Contador)</h4>
+                <label style="font-size:0.8rem; color:#8892b0;">Mostrar a tela cheia em:</label>
+                <div class="grid-3">
+                    <button onclick="changeScene('presenca','1')">T1</button>
+                    <button onclick="changeScene('presenca','2')">T2</button>
+                    <button onclick="changeScene('presenca','3')">T3</button>
+                </div>
+                <button class="btn-action" onclick="changeScene('presenca','todos')">📣 Mostrar em TODOS</button>
+                <p style="font-size:0.72rem; color:#8892b0; margin:6px 0 0;">Para voltar à câmera, use "ENVIAR IMAGEM PARA" no topo.</p>
+            </div>
+
         </div>
 
         <div id="video-panel">
