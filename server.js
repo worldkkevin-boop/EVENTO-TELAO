@@ -7,7 +7,12 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const PORT = 3000;
 
-app.use(express.static('public'));
+// Serve a pasta public; HTML sem cache pra todo F5 pegar a versao mais nova
+app.use(express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
+    }
+}));
 
 // Descobre os IPs da rede local (Wi-Fi / cabo) desta maquina
 function getLocalIPs() {
