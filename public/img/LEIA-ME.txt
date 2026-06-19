@@ -37,3 +37,17 @@ Salve a imagem do QR Code AQUI com este nome EXATO:
 - No painel, use "Mostrar QR" / "Esconder QR" pra ligar/desligar no telão.
 - Tamanho sugerido: 400x400 px (quadrado).
 
+----------------------------------------------------
+TELA PRINCIPAL (fundo / idle)
+----------------------------------------------------
+Fundo mostrado quando você manda a "Tela Principal" (e pra onde o vídeo
+volta quando acaba sem loop). Salve UM destes (opcional):
+
+    fundo.png   (imagem ou GIF de fundo)   -> use .png ou troque por fundo.gif
+    fundo.mp4   (vídeo de fundo em loop)
+
+- Se existir fundo.mp4, ele toca em loop por cima.
+- Senão, usa fundo.png/gif.
+- Se não tiver nenhum, mostra um fundo azul com o nome do evento (reserva).
+- Tamanho: 1920x1080 (Full HD).
+

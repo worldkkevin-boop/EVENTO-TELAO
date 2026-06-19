@@ -148,6 +148,7 @@
                         <button onclick="pauseVideoLocal()" style="background: #e6b800; color: black; margin: 0; padding: 8px;">⏸ Pause</button>
                         <button onclick="rewindVideoLocal()" style="background: #555; margin: 0; padding: 8px;">⏮ Voltar</button>
                     </div>
+                    <button id="btnLoop" onclick="toggleLoop()" style="margin-top: 8px; background: #444;">🔁 Loop: Desligado</button>
                 </div>
             </div>
 
@@ -248,6 +249,18 @@
                 <p style="font-size:0.72rem; color:#8892b0; margin:6px 0 0;">Para voltar à câmera, use "ENVIAR IMAGEM PARA" no topo.</p>
             </div>
 
+            <div class="module-box">
+                <h4 class="module-title">🖼️ Tela Principal (fundo)</h4>
+                <label style="font-size:0.8rem; color:#8892b0;">Mostrar a tela de fundo em:</label>
+                <div class="grid-3">
+                    <button onclick="changeScene('principal','1')">T1</button>
+                    <button onclick="changeScene('principal','2')">T2</button>
+                    <button onclick="changeScene('principal','3')">T3</button>
+                </div>
+                <button class="btn-action" onclick="changeScene('principal','todos')">🖼️ Mostrar em TODOS</button>
+                <p style="font-size:0.72rem; color:#8892b0; margin:6px 0 0;">Coloque <b>img/fundo.png</b> (ou .gif) ou <b>img/fundo.mp4</b>. Vídeo que acaba sem loop volta pra cá.</p>
+            </div>
+
         </div>
 
         <div id="video-panel">
@@ -266,6 +279,8 @@
         let currentStream = null;
         let peerConnections = {};
         let fileVideoElement = null;
+        let loopVideo = false;
+        let lastSceneTarget = 'todos'; // último destino usado (pra voltar à tela principal)
 
         // --- ALTERNÂNCIA DE LAYOUT ---
         let isExpanded = false;
@@ -339,7 +354,12 @@
             fileVideoElement = document.createElement('video');
             fileVideoElement.src = URL.createObjectURL(file);
             fileVideoElement.muted = true;
-            fileVideoElement.loop = false; // Não repete automaticamente
+            fileVideoElement.loop = loopVideo;
+
+            // Quando o vídeo termina (sem loop), volta pra Tela Principal
+            fileVideoElement.onended = () => {
+                if (!loopVideo) changeScene('principal', lastSceneTarget);
+            };
 
             // Quando carregar os dados do vídeo, mostra o painel
             fileVideoElement.onloadedmetadata = () => {
@@ -534,12 +554,22 @@
 
         // --- CONTROLES GERAIS ---
         function changeScene(sceneType, target) {
+            // Guarda o destino quando libera imagem (pra voltar à Principal quando o vídeo acabar)
+            if (sceneType === 'camera') lastSceneTarget = target;
             // Se for liberar imagem e houver arquivo carregado, reinicia e dá play na hora
             if (sceneType === 'camera' && fileVideoElement) {
                 fileVideoElement.currentTime = 0;
                 fileVideoElement.play();
             }
             socket.emit('switch-scene', { scene: sceneType, target: target });
+        }
+
+        function toggleLoop() {
+            loopVideo = !loopVideo;
+            if (fileVideoElement) fileVideoElement.loop = loopVideo;
+            const b = document.getElementById('btnLoop');
+            b.innerText = '🔁 Loop: ' + (loopVideo ? 'Ligado' : 'Desligado');
+            b.style.background = loopVideo ? 'var(--success)' : '#444';
         }
         function triggerAds() { socket.emit('start-ads', document.getElementById('adsDuration').value); }
         function stopAds() { socket.emit('stop-ads'); }
