@@ -1,5 +1,6 @@
 node_modules/
 .DS_Store
+certs/
 
 # Videos pesados ficam locais (GitHub rejeita > 100MB). So o LEIA-ME vai pro repo.
 public/videos/*

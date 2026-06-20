@@ -5,7 +5,8 @@ const path = require('path');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
-const PORT = 3000;
+const PORT = 3000;        // http  (PC/localhost)
+const HTTPS_PORT = 3443;  // https (celular: libera a camera no iPhone/Android)
 
 // Serve a pasta public; HTML sem cache pra todo F5 pegar a versao mais nova
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -263,9 +264,48 @@ io.on('connection', (socket) => {
     });
 });
 
+// Gera (ou reaproveita) um certificado caseiro pro HTTPS. Fica salvo em /certs
+// pra nao mudar a cada reinicio (assim o celular nao precisa aceitar o aviso de novo).
+function getHttpsOptions() {
+    const dir = path.join(__dirname, 'certs');
+    const keyPath = path.join(dir, 'key.pem');
+    const certPath = path.join(dir, 'cert.pem');
+    try {
+        if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+            return { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
+        }
+    } catch (e) { /* gera de novo abaixo */ }
+
+    const selfsigned = require('selfsigned');
+    const altNames = [{ type: 2, value: 'localhost' }, { type: 7, ip: '127.0.0.1' }];
+    getLocalIPs().forEach(ip => altNames.push({ type: 7, ip }));
+    const pems = selfsigned.generate(
+        [{ name: 'commonName', value: 'meu-evento-telao' }],
+        { days: 3650, keySize: 2048, algorithm: 'sha256', extensions: [{ name: 'subjectAltName', altNames }] }
+    );
+    try {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(keyPath, pems.private);
+        fs.writeFileSync(certPath, pems.cert);
+    } catch (e) { /* sem disco: usa em memoria mesmo */ }
+    return { key: pems.private, cert: pems.cert };
+}
+
 http.listen(PORT, '0.0.0.0', () => {
     const ips = getLocalIPs();
     console.log('🚀 Servidor Multi-Telão rodando!');
-    console.log(`   Painel:  http://localhost:${PORT}/transmit.html`);
-    ips.forEach(ip => console.log(`   Telões:  http://${ip}:${PORT}/receive.html?t=1`));
+    console.log(`   Painel (PC):     http://localhost:${PORT}/transmit.html`);
+    ips.forEach(ip => console.log(`   Telões (PC):     http://${ip}:${PORT}/receive.html?t=1`));
+
+    // Servidor HTTPS pro celular (camera so libera em conexao segura)
+    try {
+        const https = require('https').createServer(getHttpsOptions(), app);
+        io.attach(https); // mesmo Socket.IO atende http e https
+        https.listen(HTTPS_PORT, '0.0.0.0', () => {
+            console.log('🔒 HTTPS ligado (use no CELULAR pra liberar a câmera):');
+            ips.forEach(ip => console.log(`   Câmera (cel):    https://${ip}:${HTTPS_PORT}/transmit.html`));
+        });
+    } catch (e) {
+        console.log('⚠️  Não consegui ligar o HTTPS:', e.message);
+    }
 });
