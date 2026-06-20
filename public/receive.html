@@ -280,13 +280,14 @@
         const presencaNum = document.getElementById('presenca-num');
         const pad4 = n => String(Math.max(0, n)).padStart(4, '0');
         let msPorUnidade = 5000; // tempo por numero (sincronizado pelo servidor/painel)
-        function animarEl(el, destino) {
+        function animarEl(el, destino, animar) {
             const inicio = parseInt(el.dataset.valor || '0', 10) || 0;
             destino = parseInt(destino, 10) || 0;
             el.dataset.valor = destino;
             // Pulso visual no badge do contador
             if (el === numContador) { numContador.classList.remove('pop'); void numContador.offsetWidth; numContador.classList.add('pop'); }
-            if (inicio === destino) { el.innerText = pad4(destino); return; }
+            // Sem animar (definir/F5/zerar) ou velocidade 0 -> aparece DIRETO no numero.
+            if (!animar || inicio === destino || msPorUnidade <= 0) { el.innerText = pad4(destino); return; }
             // Ritmo fixo: msPorUnidade em cada numero (editavel no painel).
             const dur = Math.abs(destino - inicio) * msPorUnidade;
             const t0 = performance.now();
@@ -299,7 +300,7 @@
             }
             requestAnimationFrame(frame);
         }
-        socket.on('atualizar-contador', (total) => { animarEl(numContador, total); animarEl(presencaNum, total); });
+        socket.on('atualizar-contador', (total, animar) => { animarEl(numContador, total, animar); animarEl(presencaNum, total, animar); });
         socket.on('contador-velocidade', (ms) => { msPorUnidade = ms; });
         socket.on('evento-atual', (nome) => {
             const t = (nome || 'PLENÁRIA UNIÃO BRASIL').toUpperCase();

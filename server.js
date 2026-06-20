@@ -45,7 +45,7 @@ app.get('/videos', (req, res) => {
 // --- CONTADOR DE PRESENCA ---
 let contadorPresencas = 0;   // contagem REAL (presencas/nuvem) usada no modo automatico
 let contadorManual = 0;      // numero digitado no painel, usado no modo manual
-let modoContador = 'auto';   // 'auto' = conta presencas | 'manual' = numero fixo do painel
+let modoContador = 'manual'; // contador SO manual (numero definido no painel)
 let contadorVelocidade = 5000; // ms que o contador leva em cada numero (editavel no painel)
 let listaPresencas = []; // { nome, whatsapp, hora }
 let contadorVisivel = false; // lembra se o contador esta na tela
@@ -159,13 +159,17 @@ io.on('connection', (socket) => {
         io.emit('atualizar-contador', valorContador());
     });
 
-    // Define o numero manual (ex: 500). Ja FORCA o modo manual e o telao sobe devagar ate o valor.
+    // Define o numero manual (ex: 500).
+    // 1a vez (estava zerado) -> aparece DIRETO no numero (sem subir do zero).
+    // Trocar pra outro numero depois -> ai sim rola devagar ate o novo.
     socket.on('set-contador-valor', (valor) => {
-        contadorManual = Math.max(0, parseInt(valor, 10) || 0);
-        modoContador = 'manual'; // definir um numero = entrar no modo manual (nao puxa mais a lista)
-        console.log('Contador manual definido em', contadorManual);
+        const novo = Math.max(0, parseInt(valor, 10) || 0);
+        const animar = contadorManual > 0; // ja tinha numero na tela? entao atualiza devagar
+        contadorManual = novo;
+        modoContador = 'manual';
+        console.log('Contador manual definido em', novo, animar ? '(rolando)' : '(direto)');
         io.emit('contador-modo', modoContador);
-        io.emit('atualizar-contador', contadorManual);
+        io.emit('atualizar-contador', novo, animar);
     });
 
     // Velocidade da rolagem: quantos SEGUNDOS o contador leva em cada numero
@@ -216,7 +220,7 @@ io.on('connection', (socket) => {
         contadorManual = 0;
         listaPresencas = [];
         console.log('Contador zerado pelo painel.');
-        io.emit('atualizar-contador', valorContador());
+        io.emit('atualizar-contador', valorContador(), false); // zera direto, sem rolar
     });
 
     // Define o evento atual (digitado no painel) -> filtra a contagem da nuvem
@@ -230,7 +234,7 @@ io.on('connection', (socket) => {
     // Ao conectar, ja manda o numero atual, o modo, o estado de visibilidade e o evento
     socket.emit('contador-modo', modoContador);
     socket.emit('contador-velocidade', contadorVelocidade);
-    socket.emit('atualizar-contador', valorContador());
+    socket.emit('atualizar-contador', valorContador(), false); // ao conectar/F5 mostra direto
     socket.emit('display-contador', contadorVisivel);
     socket.emit('display-qr', qrVisivel);
     socket.emit('layout', layoutTelao);
