@@ -266,22 +266,33 @@ io.on('connection', (socket) => {
 
 // Gera (ou reaproveita) um certificado caseiro pro HTTPS. Fica salvo em /certs
 // pra nao mudar a cada reinicio (assim o celular nao precisa aceitar o aviso de novo).
-function getHttpsOptions() {
+// OBS: no selfsigned 5.x o generate() e ASSINCRONO (retorna Promise).
+async function getHttpsOptions() {
     const dir = path.join(__dirname, 'certs');
     const keyPath = path.join(dir, 'key.pem');
     const certPath = path.join(dir, 'cert.pem');
     try {
         if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-            return { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
+            const key = fs.readFileSync(keyPath);
+            const cert = fs.readFileSync(certPath);
+            if (key.length && cert.length) return { key, cert };
         }
     } catch (e) { /* gera de novo abaixo */ }
 
     const selfsigned = require('selfsigned');
     const altNames = [{ type: 2, value: 'localhost' }, { type: 7, ip: '127.0.0.1' }];
     getLocalIPs().forEach(ip => altNames.push({ type: 7, ip }));
-    const pems = selfsigned.generate(
+    const pems = await selfsigned.generate(
         [{ name: 'commonName', value: 'meu-evento-telao' }],
-        { days: 3650, keySize: 2048, algorithm: 'sha256', extensions: [{ name: 'subjectAltName', altNames }] }
+        {
+            days: 3650, keySize: 2048, algorithm: 'sha256',
+            extensions: [
+                { name: 'basicConstraints', cA: true },
+                { name: 'keyUsage', digitalSignature: true, keyEncipherment: true },
+                { name: 'extKeyUsage', serverAuth: true },
+                { name: 'subjectAltName', altNames }
+            ]
+        }
     );
     try {
         fs.mkdirSync(dir, { recursive: true });
@@ -298,14 +309,14 @@ http.listen(PORT, '0.0.0.0', () => {
     ips.forEach(ip => console.log(`   Telões (PC):     http://${ip}:${PORT}/receive.html?t=1`));
 
     // Servidor HTTPS pro celular (camera so libera em conexao segura)
-    try {
-        const https = require('https').createServer(getHttpsOptions(), app);
+    getHttpsOptions().then((opts) => {
+        const https = require('https').createServer(opts, app);
         io.attach(https); // mesmo Socket.IO atende http e https
         https.listen(HTTPS_PORT, '0.0.0.0', () => {
             console.log('🔒 HTTPS ligado (use no CELULAR pra liberar a câmera):');
             ips.forEach(ip => console.log(`   Câmera (cel):    https://${ip}:${HTTPS_PORT}/transmit.html`));
         });
-    } catch (e) {
+    }).catch((e) => {
         console.log('⚠️  Não consegui ligar o HTTPS:', e.message);
-    }
+    });
 });
