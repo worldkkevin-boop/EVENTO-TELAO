@@ -250,7 +250,8 @@
             telaVideo.src = '/videos/' + encodeURIComponent(data.file);
             telaVideo.loop = !!data.loop;
             telaVideo.currentTime = 0;
-            telaVideo.muted = false;
+            // No modo "Todos" so o T1 toca com som; os outros ficam mudos pra nao duplicar o audio.
+            telaVideo.muted = data.todos ? (myTelaoId !== '1') : false;
             telaVideo.style.display = 'block';
             const p = telaVideo.play();
             if (p) p.catch(() => { telaVideo.muted = true; telaVideo.play().catch(() => {}); });

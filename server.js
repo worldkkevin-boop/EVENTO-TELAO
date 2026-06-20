@@ -190,10 +190,13 @@ io.on('connection', (socket) => {
     });
 
     // Toca um vídeo pronto (da pasta /videos) direto no telão escolhido
+    // 'todos' = vai pros 3 telões, mas SO o T1 toca com som (evita audio duplicado/eco).
     socket.on('play-video', (data) => {
-        const payload = { file: data.file, loop: !!data.loop };
-        if (data.target === 'todos') socket.broadcast.emit('play-video', payload);
-        else io.to('telao-' + data.target).emit('play-video', payload);
+        if (data.target === 'todos') {
+            socket.broadcast.emit('play-video', { file: data.file, loop: !!data.loop, todos: true });
+        } else {
+            io.to('telao-' + data.target).emit('play-video', { file: data.file, loop: !!data.loop, todos: false });
+        }
     });
     socket.on('stop-video', (target) => {
         if (target === 'todos') socket.broadcast.emit('stop-video');
