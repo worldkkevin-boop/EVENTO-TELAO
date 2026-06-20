@@ -278,6 +278,7 @@
         const numContador = document.getElementById('num-contador');
         const presencaNum = document.getElementById('presenca-num');
         const pad4 = n => String(Math.max(0, n)).padStart(4, '0');
+        let msPorUnidade = 5000; // tempo por numero (sincronizado pelo servidor/painel)
         function animarEl(el, destino) {
             const inicio = parseInt(el.dataset.valor || '0', 10) || 0;
             destino = parseInt(destino, 10) || 0;
@@ -285,9 +286,8 @@
             // Pulso visual no badge do contador
             if (el === numContador) { numContador.classList.remove('pop'); void numContador.offsetWidth; numContador.classList.add('pop'); }
             if (inicio === destino) { el.innerText = pad4(destino); return; }
-            // Ritmo fixo: 5 segundos por numero (cada unidade aparece por 5s antes de virar a proxima).
-            const MS_POR_UNIDADE = 5000;
-            const dur = Math.abs(destino - inicio) * MS_POR_UNIDADE;
+            // Ritmo fixo: msPorUnidade em cada numero (editavel no painel).
+            const dur = Math.abs(destino - inicio) * msPorUnidade;
             const t0 = performance.now();
             function frame(t) {
                 const p = Math.min(1, (t - t0) / dur);
@@ -299,6 +299,7 @@
             requestAnimationFrame(frame);
         }
         socket.on('atualizar-contador', (total) => { animarEl(numContador, total); animarEl(presencaNum, total); });
+        socket.on('contador-velocidade', (ms) => { msPorUnidade = ms; });
         socket.on('evento-atual', (nome) => {
             const t = (nome || 'PLENÁRIA UNIÃO BRASIL').toUpperCase();
             document.getElementById('presenca-titulo').innerText = t;

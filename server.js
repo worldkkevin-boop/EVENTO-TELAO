@@ -45,6 +45,7 @@ app.get('/videos', (req, res) => {
 let contadorPresencas = 0;   // contagem REAL (presencas/nuvem) usada no modo automatico
 let contadorManual = 0;      // numero digitado no painel, usado no modo manual
 let modoContador = 'auto';   // 'auto' = conta presencas | 'manual' = numero fixo do painel
+let contadorVelocidade = 5000; // ms que o contador leva em cada numero (editavel no painel)
 let listaPresencas = []; // { nome, whatsapp, hora }
 let contadorVisivel = false; // lembra se o contador esta na tela
 
@@ -166,6 +167,15 @@ io.on('connection', (socket) => {
         io.emit('atualizar-contador', contadorManual);
     });
 
+    // Velocidade da rolagem: quantos SEGUNDOS o contador leva em cada numero
+    socket.on('set-contador-velocidade', (segundos) => {
+        let s = parseFloat(segundos);
+        if (isNaN(s) || s < 0) s = 0;
+        contadorVelocidade = Math.round(s * 1000); // guarda em ms
+        console.log('Velocidade do contador:', s, 's por numero');
+        io.emit('contador-velocidade', contadorVelocidade);
+    });
+
     // Liga/desliga o contador em todos os teloes (e lembra o estado)
     socket.on('toggle-contador', (mostrar) => {
         contadorVisivel = !!mostrar;
@@ -215,6 +225,7 @@ io.on('connection', (socket) => {
 
     // Ao conectar, ja manda o numero atual, o modo, o estado de visibilidade e o evento
     socket.emit('contador-modo', modoContador);
+    socket.emit('contador-velocidade', contadorVelocidade);
     socket.emit('atualizar-contador', valorContador());
     socket.emit('display-contador', contadorVisivel);
     socket.emit('display-qr', qrVisivel);
