@@ -524,12 +524,13 @@
             destino = parseInt(destino, 10) || 0;
             painelContador.dataset.valor = destino;
             if (inicio === destino) { painelContador.innerText = pad4(destino); return; }
-            // Sobe BEM devagar, rolando ate o numero (nao pula de uma vez). Quanto maior o salto, mais tempo (ate 20s).
-            const dur = Math.min(20000, 1000 + Math.abs(destino - inicio) * 45);
+            // Ritmo fixo: 5 segundos por numero (cada unidade aparece por 5s antes de virar a proxima).
+            const MS_POR_UNIDADE = 5000;
+            const dur = Math.abs(destino - inicio) * MS_POR_UNIDADE;
             const t0 = performance.now();
             function frame(t) {
                 const p = Math.min(1, (t - t0) / dur);
-                const eased = p * p * (3 - 2 * p); // ritmo firme: devagar no inicio/fim, constante no meio
+                const eased = p; // linear: cada numero dura o mesmo tempo
                 painelContador.innerText = pad4(Math.round(inicio + (destino - inicio) * eased));
                 if (p < 1) requestAnimationFrame(frame); else painelContador.innerText = pad4(destino);
             }
