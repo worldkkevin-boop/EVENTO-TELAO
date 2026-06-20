@@ -676,20 +676,25 @@
         function toggleQr(mostrar) { socket.emit('toggle-qr', mostrar); }
 
         // --- MODO DO CONTADOR (automatico x manual) ---
-        function setContadorModo(modo) { socket.emit('set-contador-modo', modo); }
-        function definirContador() {
-            const v = parseInt(document.getElementById('contadorManualInput').value, 10);
-            if (isNaN(v) || v < 0) { alert('Digite um número válido (ex: 500).'); return; }
-            socket.emit('set-contador-valor', v);
-        }
-        socket.on('contador-modo', (modo) => {
+        function renderModoContador(modo) {
             const manual = modo === 'manual';
             document.getElementById('contadorManualBox').style.display = manual ? 'block' : 'none';
             const bA = document.getElementById('btnModoAuto');
             const bM = document.getElementById('btnModoManual');
             bA.style.background = manual ? '#444' : 'var(--success)';
             bM.style.background = manual ? 'var(--success)' : '#444';
-        });
+            if (manual) document.getElementById('contadorManualInput').focus();
+        }
+        function setContadorModo(modo) {
+            renderModoContador(modo);        // mostra/esconde o campo na hora
+            socket.emit('set-contador-modo', modo);
+        }
+        function definirContador() {
+            const v = parseInt(document.getElementById('contadorManualInput').value, 10);
+            if (isNaN(v) || v < 0) { alert('Digite um número válido (ex: 500).'); return; }
+            socket.emit('set-contador-valor', v);
+        }
+        socket.on('contador-modo', (modo) => renderModoContador(modo));
 
         // --- POSIÇÃO/TAMANHO NO TELÃO ---
         function enviarLayout() {
