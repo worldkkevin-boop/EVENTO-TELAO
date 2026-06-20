@@ -157,10 +157,13 @@ io.on('connection', (socket) => {
         io.emit('atualizar-contador', valorContador());
     });
 
-    // Define o numero manual (ex: 500). O telao sobe devagar ate esse valor.
+    // Define o numero manual (ex: 500). Ja FORCA o modo manual e o telao sobe devagar ate o valor.
     socket.on('set-contador-valor', (valor) => {
         contadorManual = Math.max(0, parseInt(valor, 10) || 0);
-        if (modoContador === 'manual') io.emit('atualizar-contador', contadorManual);
+        modoContador = 'manual'; // definir um numero = entrar no modo manual (nao puxa mais a lista)
+        console.log('Contador manual definido em', contadorManual);
+        io.emit('contador-modo', modoContador);
+        io.emit('atualizar-contador', contadorManual);
     });
 
     // Liga/desliga o contador em todos os teloes (e lembra o estado)
