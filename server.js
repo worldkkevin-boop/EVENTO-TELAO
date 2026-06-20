@@ -42,9 +42,16 @@ app.get('/videos', (req, res) => {
 });
 
 // --- CONTADOR DE PRESENCA ---
-let contadorPresencas = 0;
+let contadorPresencas = 0;   // contagem REAL (presencas/nuvem) usada no modo automatico
+let contadorManual = 0;      // numero digitado no painel, usado no modo manual
+let modoContador = 'auto';   // 'auto' = conta presencas | 'manual' = numero fixo do painel
 let listaPresencas = []; // { nome, whatsapp, hora }
 let contadorVisivel = false; // lembra se o contador esta na tela
+
+// Numero que aparece no telao, conforme o modo escolhido
+function valorContador() {
+    return modoContador === 'manual' ? contadorManual : contadorPresencas;
+}
 let qrVisivel = false; // lembra se o QR Code esta na tela
 // Posição/tamanho do contador e do QR no telão (configurável pelo painel)
 let layoutTelao = {
@@ -71,7 +78,7 @@ async function pollNuvem() {
         const data = await resp.json();
         if (typeof data.total === 'number' && data.total !== contadorPresencas) {
             contadorPresencas = data.total;
-            io.emit('atualizar-contador', contadorPresencas);
+            if (modoContador === 'auto') io.emit('atualizar-contador', contadorPresencas);
         }
     } catch (e) { /* rede instavel: tenta de novo no proximo ciclo */ }
 }
@@ -138,7 +145,22 @@ io.on('connection', (socket) => {
             hora: new Date().toLocaleString('pt-BR')
         });
         console.log(`Nova presença: ${dados.nome}. Total: ${contadorPresencas}`);
-        io.emit('atualizar-contador', contadorPresencas);
+        // No modo manual o numero do telao e fixo; a presenca so entra na lista/CSV.
+        if (modoContador === 'auto') io.emit('atualizar-contador', contadorPresencas);
+    });
+
+    // Troca entre contagem automatica (presencas) e numero manual digitado no painel
+    socket.on('set-contador-modo', (modo) => {
+        modoContador = (modo === 'manual') ? 'manual' : 'auto';
+        console.log('Contador no modo:', modoContador);
+        io.emit('contador-modo', modoContador);
+        io.emit('atualizar-contador', valorContador());
+    });
+
+    // Define o numero manual (ex: 500). O telao sobe devagar ate esse valor.
+    socket.on('set-contador-valor', (valor) => {
+        contadorManual = Math.max(0, parseInt(valor, 10) || 0);
+        if (modoContador === 'manual') io.emit('atualizar-contador', contadorManual);
     });
 
     // Liga/desliga o contador em todos os teloes (e lembra o estado)
@@ -174,9 +196,10 @@ io.on('connection', (socket) => {
     // Zera a contagem (botao do painel, com confirmacao no front)
     socket.on('reset-contador', () => {
         contadorPresencas = 0;
+        contadorManual = 0;
         listaPresencas = [];
         console.log('Contador zerado pelo painel.');
-        io.emit('atualizar-contador', contadorPresencas);
+        io.emit('atualizar-contador', valorContador());
     });
 
     // Define o evento atual (digitado no painel) -> filtra a contagem da nuvem
@@ -187,8 +210,9 @@ io.on('connection', (socket) => {
         pollNuvem(); // atualiza o número na hora
     });
 
-    // Ao conectar, ja manda o numero atual, o estado de visibilidade e o evento
-    socket.emit('atualizar-contador', contadorPresencas);
+    // Ao conectar, ja manda o numero atual, o modo, o estado de visibilidade e o evento
+    socket.emit('contador-modo', modoContador);
+    socket.emit('atualizar-contador', valorContador());
     socket.emit('display-contador', contadorVisivel);
     socket.emit('display-qr', qrVisivel);
     socket.emit('layout', layoutTelao);

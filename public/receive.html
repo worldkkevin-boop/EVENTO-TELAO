@@ -285,7 +285,8 @@
             // Pulso visual no badge do contador
             if (el === numContador) { numContador.classList.remove('pop'); void numContador.offsetWidth; numContador.classList.add('pop'); }
             if (inicio === destino) { el.innerText = pad4(destino); return; }
-            const dur = Math.min(1200, 400 + Math.abs(destino - inicio) * 120);
+            // Sobe devagar, rolando ate o numero (nao pula de uma vez). Quanto maior o salto, mais tempo (ate 6s).
+            const dur = Math.min(6000, 600 + Math.abs(destino - inicio) * 35);
             const t0 = performance.now();
             function frame(t) {
                 const p = Math.min(1, (t - t0) / dur);

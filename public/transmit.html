@@ -222,7 +222,21 @@
                     <span style="font-size:0.75rem; color:#8892b0; text-transform:uppercase;">Presentes</span><br>
                     <span id="painel-contador" style="font-size:2.2rem; font-weight:900; color:var(--amarelo-ub); display:inline-block; font-variant-numeric:tabular-nums; letter-spacing:2px;">0000</span>
                 </div>
+
+                <label style="font-size: 0.8rem; display: block; margin-bottom: 5px;">Modo do contador:</label>
                 <div class="grid-2">
+                    <button id="btnModoAuto" style="margin: 0;" onclick="setContadorModo('auto')">Automático</button>
+                    <button id="btnModoManual" style="margin: 0;" onclick="setContadorModo('manual')">Manual</button>
+                </div>
+                <div id="contadorManualBox" style="display:none; margin-top:8px;">
+                    <label style="font-size: 0.8rem; display: block; margin-bottom: 5px;">Número manual (sobe devagar até ele):</label>
+                    <div style="display:flex; gap:5px;">
+                        <input type="number" id="contadorManualInput" min="0" placeholder="Ex: 500" style="margin:0;">
+                        <button class="btn-action" style="width:auto; margin:0; padding:0 16px;" onclick="definirContador()">Definir</button>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="margin-top:8px;">
                     <button style="background: var(--success); margin: 0;" onclick="toggleContador(true)">Mostrar nº</button>
                     <button style="background: #888; margin: 0;" onclick="toggleContador(false)">Esconder nº</button>
                 </div>
@@ -510,7 +524,8 @@
             destino = parseInt(destino, 10) || 0;
             painelContador.dataset.valor = destino;
             if (inicio === destino) { painelContador.innerText = pad4(destino); return; }
-            const dur = Math.min(1200, 400 + Math.abs(destino - inicio) * 120);
+            // Sobe devagar, rolando ate o numero (nao pula de uma vez). Quanto maior o salto, mais tempo (ate 6s).
+            const dur = Math.min(6000, 600 + Math.abs(destino - inicio) * 35);
             const t0 = performance.now();
             function frame(t) {
                 const p = Math.min(1, (t - t0) / dur);
@@ -659,6 +674,22 @@
         function stopAds() { socket.emit('stop-ads'); }
         function toggleContador(mostrar) { socket.emit('toggle-contador', mostrar); }
         function toggleQr(mostrar) { socket.emit('toggle-qr', mostrar); }
+
+        // --- MODO DO CONTADOR (automatico x manual) ---
+        function setContadorModo(modo) { socket.emit('set-contador-modo', modo); }
+        function definirContador() {
+            const v = parseInt(document.getElementById('contadorManualInput').value, 10);
+            if (isNaN(v) || v < 0) { alert('Digite um número válido (ex: 500).'); return; }
+            socket.emit('set-contador-valor', v);
+        }
+        socket.on('contador-modo', (modo) => {
+            const manual = modo === 'manual';
+            document.getElementById('contadorManualBox').style.display = manual ? 'block' : 'none';
+            const bA = document.getElementById('btnModoAuto');
+            const bM = document.getElementById('btnModoManual');
+            bA.style.background = manual ? '#444' : 'var(--success)';
+            bM.style.background = manual ? 'var(--success)' : '#444';
+        });
 
         // --- POSIÇÃO/TAMANHO NO TELÃO ---
         function enviarLayout() {
