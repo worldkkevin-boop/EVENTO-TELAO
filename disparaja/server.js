@@ -334,12 +334,23 @@ app.get('/disparar', requireLogin, (req, res) => {
           if(s.terminado){
             clearInterval(timer);
             document.getElementById('btnEnviar').disabled = false;
-            document.getElementById('progTitulo').innerText = '✅ Disparo concluído';
-            document.getElementById('resultado').innerHTML = '✅ Concluído! '+s.enviados+' enviados, '+s.fail+' falhas.'+(s.parou?' (parou: '+s.parou+')':'')+' • <a href="/relatorio">ver status de entrega →</a>';
+            if(s.restam > 0){
+              document.getElementById('progTitulo').innerHTML = '⚠️ Pausado';
+              document.getElementById('resultado').innerHTML = '⚠️ <b>Saldo acabou.</b> Enviei '+s.enviados+', faltam '+s.restam+'. Adicione créditos e clique 👉 <button type="button" class="btn azul mini" onclick="retomar()">▶️ Retomar (faltam '+s.restam+')</button>';
+            } else {
+              document.getElementById('progTitulo').innerText = '✅ Disparo concluído';
+              document.getElementById('resultado').innerHTML = '✅ Concluído! '+s.enviados+' enviados, '+s.fail+' falhas. • <a href="/relatorio">ver status de entrega →</a>';
+            }
           } else {
             document.getElementById('progTitulo').innerText = '📨 Enviando... ('+feitos+'/'+s.total+')';
           }
         },1500);
+      }
+      async function retomar(){
+        document.getElementById('resultado').innerText = 'Retomando...';
+        let j; try{ j = await (await fetch('/api/disparo-retomar',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json(); }catch(e){ j={ok:false,erro:e.message}; }
+        if(!j.ok){ document.getElementById('resultado').innerHTML = '❌ '+j.erro; return; }
+        acompanhar(j.jobId);
       }
       async function disparar(){
         const msg = document.getElementById('msg').value.trim();
@@ -368,45 +379,61 @@ app.get('/disparar', requireLogin, (req, res) => {
   `, req.user));
 });
 
-// Inicia o disparo (em background) e devolve um jobId pra acompanhar o progresso
+// Inicia um disparo em background. Guarda os "restantes" se parar (ex: saldo) pra poder RETOMAR.
+function iniciarDisparo(userId, contatos, mensagem) {
+  const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const job = { userId, total: contatos.length, enviados: 0, fail: 0, terminado: false, parou: null, restantes: [], mensagem };
+  disparoJobs.set(jobId, job);
+  jobAtualPorUser.set(userId, jobId);
+  (async () => {
+    for (let i = 0; i < contatos.length; i++) {
+      const c = contatos[i];
+      const u = dao.buscarPorId(userId);
+      const preco = u ? u.preco_sms : Infinity;
+      if (!u || u.saldo < preco) { job.parou = 'saldo'; job.restantes = contatos.slice(i); break; }
+      const r = await comtele.enviarSMS(c.telefone, comtele.personaliza(mensagem, c.nome), 'u' + userId);
+      if (r.ok) {
+        dao.debitar(userId, preco, 'SMS para ' + c.telefone);
+        dao.registrarEnvio(userId, c.nome, comtele.foneComtele(c.telefone));
+        job.enviados++;
+      } else {
+        job.fail++; // falhou na Comtele: NAO desconta saldo
+      }
+      if (i < contatos.length - 1) await new Promise(res => setTimeout(res, 500)); // throttle
+    }
+    job.terminado = true;
+    setTimeout(() => disparoJobs.delete(jobId), 30 * 60 * 1000); // mantem 30min (tempo de recarregar e retomar)
+  })();
+  return jobId;
+}
+
 app.post('/api/disparar', requireLogin, (req, res) => {
   const contatos = Array.isArray(req.body.contatos) ? req.body.contatos : [];
   const mensagem = String(req.body.mensagem || '').trim();
   if (!contatos.length) return res.json({ ok: false, erro: 'Lista vazia.' });
   if (!mensagem) return res.json({ ok: false, erro: 'Mensagem vazia.' });
-  const preco = req.user.preco_sms;
-  if (req.user.saldo < preco) return res.json({ ok: false, erro: 'Saldo insuficiente. Compre créditos.' });
-
-  const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const job = { userId: req.user.id, total: contatos.length, enviados: 0, fail: 0, terminado: false, parou: null };
-  disparoJobs.set(jobId, job);
-  jobAtualPorUser.set(req.user.id, jobId);
-  res.json({ ok: true, jobId });
-
-  (async () => {
-    for (let i = 0; i < contatos.length; i++) {
-      const c = contatos[i];
-      const u = dao.buscarPorId(job.userId);
-      if (!u || u.saldo < preco) { job.parou = 'saldo acabou'; break; }
-      const r = await comtele.enviarSMS(c.telefone, comtele.personaliza(mensagem, c.nome), 'u' + job.userId);
-      if (r.ok) {
-        dao.debitar(job.userId, preco, 'SMS para ' + c.telefone);
-        dao.registrarEnvio(job.userId, c.nome, comtele.foneComtele(c.telefone));
-        job.enviados++;
-      } else {
-        job.fail++; // falhou na Comtele: NAO desconta saldo
-      }
-      if (i < contatos.length - 1) await new Promise(r => setTimeout(r, 500)); // throttle
-    }
-    job.terminado = true;
-    setTimeout(() => disparoJobs.delete(jobId), 5 * 60 * 1000); // limpa depois de 5 min
-  })();
+  if (req.user.saldo < req.user.preco_sms) return res.json({ ok: false, erro: 'Saldo insuficiente. Compre créditos.' });
+  res.json({ ok: true, jobId: iniciarDisparo(req.user.id, contatos, mensagem) });
 });
 
+// Retoma um disparo que parou (ex: saldo acabou) — manda só os que faltaram
+app.post('/api/disparo-retomar', requireLogin, (req, res) => {
+  const jobId = jobAtualPorUser.get(req.user.id);
+  const job = jobId && disparoJobs.get(jobId);
+  if (!job || job.userId !== req.user.id || !job.restantes || !job.restantes.length)
+    return res.json({ ok: false, erro: 'Não há disparo pra retomar.' });
+  if (req.user.saldo < req.user.preco_sms)
+    return res.json({ ok: false, erro: 'Saldo ainda insuficiente. Adicione créditos primeiro.' });
+  res.json({ ok: true, jobId: iniciarDisparo(req.user.id, job.restantes, job.mensagem) });
+});
+
+function statusJob(job) {
+  return { total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou, restam: (job.restantes || []).length };
+}
 app.get('/api/disparo-status', requireLogin, (req, res) => {
   const job = disparoJobs.get(req.query.id);
-  if (!job || job.userId !== req.user.id) return res.json({ terminado: true, total: 0, enviados: 0, fail: 0 });
-  res.json({ total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou });
+  if (!job || job.userId !== req.user.id) return res.json({ terminado: true, total: 0, enviados: 0, fail: 0, restam: 0 });
+  res.json(statusJob(job));
 });
 
 // Disparo atual do usuario (pra retomar a barra de progresso ao voltar pra pagina)
@@ -414,7 +441,7 @@ app.get('/api/disparo-atual', requireLogin, (req, res) => {
   const jobId = jobAtualPorUser.get(req.user.id);
   const job = jobId && disparoJobs.get(jobId);
   if (!job) return res.json({ jobId: null });
-  res.json({ jobId, total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou });
+  res.json(Object.assign({ jobId }, statusJob(job)));
 });
 
 // Envia 1 SMS de teste pro proprio numero do cliente (desconta 1 SMS do saldo)
