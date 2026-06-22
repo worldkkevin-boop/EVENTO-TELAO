@@ -6,8 +6,13 @@ const session = require('express-session');
 const path = require('node:path');
 const dao = require('./db');
 
+// Carrega segredos do .env (se existir): MP_ACCESS_TOKEN, SESSION_SECRET, etc.
+try { process.loadEnvFile(path.join(__dirname, '.env')); } catch (e) { /* sem .env: usa defaults */ }
+
 const app = express();
 const PORT = process.env.PORT || 4000;
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const MP_TOKEN = process.env.MP_ACCESS_TOKEN || '';
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -96,13 +101,92 @@ app.get('/planos', requireLogin, (req, res) => {
   `, req.user));
 });
 
-// --- PAGAMENTO (Mercado Pago) — proximo passo ---
-app.post('/pagar', requireLogin, (req, res) => {
-  res.send(layout('Pagamento', `
-    <h1>Pagamento</h1>
-    <p class="sub">⏳ A integração com o Mercado Pago (Pix/cartão) é o próximo passo. Em breve aqui aparece o QR do Pix.</p>
-    <a class="btn cinza" href="/planos">Voltar aos planos</a>
-  `, req.user));
+// --- PAGAMENTO (Mercado Pago Checkout Pro: Pix + cartao) ---
+
+// Credita o saldo a partir de um pagamento. Idempotente: usa o id como ref (nao credita 2x).
+async function creditarPagamentoMP(paymentId) {
+  if (!MP_TOKEN || !paymentId) return { ok: false, motivo: 'sem token/id' };
+  let pay;
+  try {
+    const r = await fetch('https://api.mercadopago.com/v1/payments/' + paymentId, {
+      headers: { Authorization: 'Bearer ' + MP_TOKEN }
+    });
+    pay = await r.json();
+  } catch (e) { return { ok: false, motivo: e.message }; }
+  if (!pay || pay.status !== 'approved') return { ok: false, motivo: 'nao aprovado', status: pay && pay.status };
+  const [userId, planoId] = String(pay.external_reference || '').split(':');
+  const plano = PLANOS.find(p => p.id === planoId);
+  if (!userId || !plano) return { ok: false, motivo: 'referencia invalida' };
+  return dao.recarregar(Number(userId), plano.valor, `Recarga ${plano.nome}`, 'mp:' + paymentId);
+}
+
+// Escolheu um plano -> cria a cobranca no Mercado Pago e manda pro checkout
+app.post('/pagar', requireLogin, async (req, res) => {
+  const plano = PLANOS.find(p => p.id === req.body.plano);
+  if (!plano) return res.redirect('/planos');
+  if (!MP_TOKEN) {
+    return res.send(layout('Pagamento', `<h1>Pagamento</h1>
+      <p class="sub erro">⚙️ O pagamento ainda não foi configurado no servidor (falta o token do Mercado Pago).</p>
+      <a class="btn cinza" href="/planos">Voltar</a>`, req.user));
+  }
+  const body = {
+    items: [{ title: 'DisparaJá — ' + plano.nome, quantity: 1, unit_price: plano.valor / 100, currency_id: 'BRL' }],
+    external_reference: req.user.id + ':' + plano.id,
+    payer: { email: req.user.email },
+    back_urls: {
+      success: BASE_URL + '/pagamento/retorno',
+      pending: BASE_URL + '/pagamento/retorno',
+      failure: BASE_URL + '/pagamento/retorno',
+    },
+  };
+  // auto_return e webhook so funcionam com URL publica (https). Local: confirma na volta.
+  if (BASE_URL.startsWith('https')) {
+    body.auto_return = 'approved';
+    body.notification_url = BASE_URL + '/webhook/mp';
+  }
+  try {
+    const r = await fetch('https://api.mercadopago.com/checkout/preferences', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + MP_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const pref = await r.json();
+    if (pref && pref.init_point) return res.redirect(pref.init_point);
+    return res.send(layout('Pagamento', `<h1>Ops</h1>
+      <p class="sub erro">Não consegui gerar o pagamento: ${(pref && pref.message) || 'erro'}</p>
+      <a class="btn cinza" href="/planos">Voltar</a>`, req.user));
+  } catch (e) {
+    return res.send(layout('Pagamento', `<h1>Ops</h1><p class="sub erro">Erro: ${e.message}</p>
+      <a class="btn cinza" href="/planos">Voltar</a>`, req.user));
+  }
+});
+
+// Volta do checkout: confere o pagamento e credita (se aprovado). Funciona ate sem webhook.
+app.get('/pagamento/retorno', requireLogin, async (req, res) => {
+  const paymentId = req.query.payment_id || req.query.collection_id;
+  let msg = 'Voltando do checkout...', ok = false;
+  if (paymentId) {
+    const r = await creditarPagamentoMP(paymentId);
+    ok = r.ok;
+    msg = r.ok ? 'Pagamento confirmado e saldo creditado! 🎉'
+        : r.motivo === 'pagamento ja creditado' ? 'Esse pagamento já tinha sido creditado. ✅'
+        : 'Pagamento ainda não confirmado (status: ' + (r.status || r.motivo) + '). Se pagou via Pix, espere alguns segundos e atualize esta página.';
+  }
+  const user = dao.buscarPorId(req.session.userId);
+  res.send(layout('Pagamento', `<h1>${ok ? '✅ Tudo certo!' : 'Pagamento'}</h1>
+    <p class="sub">${msg}</p>
+    <p>Seu saldo agora: <b>${reais(user.saldo)}</b></p>
+    <a class="btn azul" href="/">Ir pro painel</a> <a class="btn cinza" href="/planos">Comprar mais</a>`, user));
+});
+
+// Webhook do Mercado Pago (producao): credita assim que o pagamento e aprovado.
+app.post('/webhook/mp', async (req, res) => {
+  res.sendStatus(200); // sempre responde rapido
+  try {
+    const tipo = req.body && (req.body.type || req.body.topic);
+    const id = req.body && ((req.body.data && req.body.data.id) || req.body.id);
+    if (tipo === 'payment' && id) await creditarPagamentoMP(id);
+  } catch (e) { /* ignora */ }
 });
 
 // --- DISPARO — proximo passo ---
