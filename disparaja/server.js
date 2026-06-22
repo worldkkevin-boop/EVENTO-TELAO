@@ -345,8 +345,10 @@ app.get('/api/disparo-status', requireLogin, (req, res) => {
 // --- ADMIN (você): clientes, saldo, preço ---
 const centavosDe = s => Math.round(parseFloat(String(s).replace(',', '.')) * 100) || 0;
 
-app.get('/admin', requireAdmin, (req, res) => {
+app.get('/admin', requireAdmin, async (req, res) => {
   const users = dao.listarUsuarios();
+  const comteleSaldo = await comtele.consultarSaldo();
+  const estoqueSms = comteleSaldo.ok ? Math.floor(comteleSaldo.saldo / 0.10) : null;
   const linhas = users.map(u => `<tr>
     <td>${u.id}</td>
     <td>${u.nome}<br><span class="hint">${u.email}</span>${ehAdmin(u) ? ' 👑' : ''}</td>
@@ -367,6 +369,12 @@ app.get('/admin', requireAdmin, (req, res) => {
   res.send(layout('Admin', `
     <h1>👑 Admin</h1>
     <p class="sub">Seu custo na Comtele: R$ 0,10/SMS. Cada cliente paga o "preço por SMS" abaixo — a diferença é sua margem.</p>
+    <div class="cards">
+      <div class="card"><div class="l">Estoque Comtele</div>
+        <div class="n">${comteleSaldo.ok ? ('R$ ' + comteleSaldo.saldo.toFixed(2).replace('.', ',')) : '—'}</div>
+        <span class="hint">${estoqueSms != null ? ('~' + estoqueSms + ' SMS pra enviar') : 'não consegui consultar a Comtele'}</span></div>
+      <div class="card"><div class="l">Clientes</div><div class="n">${users.length}</div></div>
+    </div>
     ${req.query.ok ? `<p class="hint" style="color:#4ade80">✅ ${req.query.ok}</p>` : ''}
     <table><thead><tr><th>#</th><th>Cliente</th><th>Saldo</th><th>Preço/SMS</th><th>Ações</th></tr></thead>
     <tbody>${linhas}</tbody></table>

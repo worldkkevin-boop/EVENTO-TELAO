@@ -31,4 +31,16 @@ async function enviarSMS(numero, conteudo) {
   return { ok, msg };
 }
 
-module.exports = { enviarSMS, personaliza, foneComtele, soDigitos };
+// Consulta o saldo (R$) da conta Comtele do dono — pra mostrar o "estoque" de SMS no admin.
+async function consultarSaldo() {
+  const apiKey = process.env.COMTELE_API_KEY || '';
+  if (!apiKey) return { ok: false };
+  try {
+    const r = await fetch('https://api.comtele.com.br/balance', { headers: { 'x-api-key': apiKey } });
+    const d = await r.json();
+    if (d && d.object && typeof d.object.balance === 'number') return { ok: true, saldo: d.object.balance };
+  } catch (e) { /* rede instavel */ }
+  return { ok: false };
+}
+
+module.exports = { enviarSMS, personaliza, foneComtele, soDigitos, consultarSaldo };
