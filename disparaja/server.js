@@ -36,7 +36,7 @@ app.use('/static', express.static(path.join(__dirname, 'public')));
 const PLANOS = [
   { id: 'teste', nome: 'Teste',     valor: 5000,  sms: 250,  preco_sms: 20 },
   { id: 'p500',  nome: '500 SMS',   valor: 9500,  sms: 500,  preco_sms: 19 },
-  { id: 'p2000', nome: '2.000 SMS', valor: 36000, sms: 2000, preco_sms: 18 },
+  { id: 'p2000', nome: '2.000 SMS', valor: 36000, sms: 2000, preco_sms: 18, destaque: 'Mais comprado' },
   { id: 'p5000', nome: '5.000 SMS', valor: 85000, sms: 5000, preco_sms: 17 },
 ];
 
@@ -63,7 +63,7 @@ function requireAdmin(req, res, next) {
 // --- layout base (HTML compartilhado) ---
 function layout(title, body, user) {
   const nav = user
-    ? `<a href="/">Painel</a><a href="/disparar">Disparar</a><a href="/relatorio">📊 Relatórios</a><a href="/respostas">💬 Respostas</a><a href="/planos">Comprar créditos</a>${ehAdmin(user) ? '<a href="/admin">👑 Admin</a>' : ''}<a href="/sair">Sair</a>`
+    ? `<a href="/">Painel</a><a href="/contatos">📇 Contatos</a><a href="/disparar">Disparar</a><a href="/relatorio">📊 Relatórios</a><a href="/respostas">💬 Respostas</a><a href="/planos">Comprar</a>${ehAdmin(user) ? '<a href="/admin">👑 Admin</a>' : ''}<a href="/sair">Sair</a>`
     : `<a href="/login">Entrar</a><a href="/cadastro">Criar conta</a>`;
   return `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -130,7 +130,8 @@ app.get('/', (req, res) => {
 // --- PLANOS ---
 app.get('/planos', requireLogin, (req, res) => {
   const cards = PLANOS.map(p => `
-    <div class="plano">
+    <div class="plano${p.destaque ? ' destaque' : ''}">
+      ${p.destaque ? `<div class="ribbon">🔥 ${p.destaque}</div>` : ''}
       <h3>${p.nome}</h3>
       <div class="preco">${reais(p.valor)}</div>
       <div class="por">${reais(p.preco_sms)} por SMS • ${p.sms.toLocaleString('pt-BR')} mensagens</div>
@@ -234,11 +235,19 @@ app.post('/webhook/mp', async (req, res) => {
 
 // --- DISPARO DE SMS ---
 app.get('/disparar', requireLogin, (req, res) => {
+  const grupos = dao.listarGrupos(req.user.id);
+  const grupoPre = String(req.query.grupo || '');
+  const opcoes = grupos.map(g => `<option value="${g.id}"${String(g.id) === grupoPre ? ' selected' : ''}>${g.nome} (${g.total})</option>`).join('');
   res.send(layout('Disparar', `
     <h1>Disparar SMS</h1>
     <p class="sub">Saldo: <b>${reais(req.user.saldo)}</b> • Cada SMS custa <b>${reais(req.user.preco_sms)}</b> do seu saldo.</p>
     <div class="card" style="display:block">
       <label>1. Lista de contatos</label>
+      <select id="grupoSel" onchange="carregarGrupo()" style="margin-bottom:10px">
+        <option value="">— escolher um grupo salvo —</option>
+        ${opcoes}
+      </select>
+      <p class="hint">ou suba um arquivo / cole os números abaixo:</p>
       <input type="file" id="arquivo" accept=".csv">
       <p class="hint">CSV com coluna <b>Numero</b> (e <b>Nome</b> se quiser personalizar). Ou cole abaixo:</p>
       <textarea id="colar" rows="3" placeholder="Cole números separados por vírgula ou um por linha (ex: 96991767788, 96988887777)"></textarea>
@@ -267,7 +276,7 @@ app.get('/disparar', requireLogin, (req, res) => {
       const PRECO = ${req.user.preco_sms};
       let contatos = [];
       function fmt(c){return 'R$ '+(c/100).toFixed(2).replace('.',',');}
-      function parseCSV(t){t=t.replace(/^﻿/,'');return t.split(/\\r?\\n/).map(l=>l.split(',').map(x=>x.replace(/^"|"$/g,'').trim())).filter(r=>r.some(x=>x!==''));}
+      function parseCSV(t){t=t.replace(/^/,'');return t.split(/\\r?\\n/).map(l=>l.split(',').map(x=>x.replace(/^"|"$/g,'').trim())).filter(r=>r.some(x=>x!==''));}
       function montar(){
         document.getElementById('resumoLista').innerHTML = contatos.length
           ? '✅ <b>'+contatos.length+'</b> contatos carregados' : '';
@@ -327,6 +336,14 @@ app.get('/disparar', requireLogin, (req, res) => {
           }
         },1500);
       }
+      async function carregarGrupo(){
+        const id = document.getElementById('grupoSel').value;
+        if(!id){ contatos = []; montar(); return; }
+        document.getElementById('resumoLista').innerText = 'Carregando grupo...';
+        try{ const j = await (await fetch('/api/grupo/'+id)).json(); contatos = j.contatos || []; }catch(e){ contatos = []; }
+        montar();
+      }
+      if(document.getElementById('grupoSel').value) carregarGrupo();
       contar();
     </script>
   `, req.user));
@@ -396,9 +413,9 @@ app.get('/relatorio', requireLogin, async (req, res) => {
 
   const badge = m => {
     const s = (m.statusDetails || m.status || '').toLowerCase();
-    if (/entreg|delivered/.test(s)) return ['#16a34a', m.statusDetails || 'Entregue'];
-    if (/n[aã]o|erro|falh|undeliv|reject|invalid|expir/.test(s)) return ['#ef4444', m.statusDetails || 'Não entregue'];
-    return ['#f59e0b', m.statusDetails || m.status || 'Em análise'];
+    if (/entreg|delivered/.test(s)) return ['#16a34a', '✅ Entregue'];
+    if (/n[aã]o|erro|falh|undeliv|reject|invalid|expir/.test(s)) return ['#ef4444', '❌ Não entregue'];
+    return ['#f59e0b', '⏳ Em análise'];
   };
   const fmtData = iso => { try { return new Date(iso).toLocaleString('pt-BR'); } catch (e) { return iso || ''; } };
   const linhas = itens.length
@@ -406,7 +423,7 @@ app.get('/relatorio', requireLogin, async (req, res) => {
         <td>${fmtData(m.sentAt || m.createdAt)}</td>
         <td>${m.receiver || ''}</td>
         <td>${(m.content || '').slice(0, 40)}</td>
-        <td><span style="background:${cor};color:#fff;padding:3px 10px;border-radius:999px;font-size:.74rem;font-weight:700">${txt}</span></td>
+        <td><span style="background:${cor};color:#fff;padding:3px 10px;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap">${txt}</span></td>
       </tr>`; }).join('')
     : `<tr><td colspan="4" class="vazio">${rep.ok ? 'Nenhum envio no período.' : 'Não consegui consultar a Comtele agora.'}</td></tr>`;
 
@@ -461,6 +478,118 @@ app.get('/respostas', requireLogin, async (req, res) => {
     <table><thead><tr><th>Quando</th><th>Nome</th><th>Número</th><th>Resposta</th><th>Status</th></tr></thead>
     <tbody>${linhas}</tbody></table>
   `, req.user));
+});
+
+// --- GRUPOS DE CONTATOS (salvos, com nome) ---
+app.get('/contatos', requireLogin, (req, res) => {
+  const grupos = dao.listarGrupos(req.user.id);
+  const linhas = grupos.length ? grupos.map(g => `<tr>
+      <td><b>${g.nome}</b></td>
+      <td>${g.total} contatos</td>
+      <td class="hint">${g.criado_em}</td>
+      <td>
+        <a class="btn cinza mini" href="/contatos/${g.id}">ver</a>
+        <a class="btn azul mini" href="/disparar?grupo=${g.id}">disparar</a>
+        <form method="POST" action="/contatos/${g.id}/apagar" class="inline" onsubmit="return confirm('Apagar este grupo?')"><button class="btn mini" style="background:#ef4444">🗑️</button></form>
+      </td></tr>`).join('')
+    : `<tr><td colspan="4" class="vazio">Nenhum grupo ainda. Crie o primeiro abaixo 👇</td></tr>`;
+  res.send(layout('Contatos', `
+    <h1>📇 Meus grupos de contatos</h1>
+    <p class="sub">Salve suas listas (com nomes) e reutilize nos disparos — sem subir arquivo toda vez.</p>
+    <table><thead><tr><th>Grupo</th><th>Tamanho</th><th>Criado</th><th>Ações</th></tr></thead><tbody>${linhas}</tbody></table>
+
+    <h2>➕ Novo grupo</h2>
+    <div class="card" style="display:block">
+      <label>Nome do grupo</label>
+      <input id="gnome" placeholder="Ex: Convenção Alliny">
+      <label style="margin-top:12px">Arquivo CSV (colunas Nome e Número)</label>
+      <input type="file" id="garq" accept=".csv">
+      <p id="gresumo" class="hint"></p>
+      <button class="btn azul" id="gbtn" onclick="criarGrupo()" style="margin-top:12px">Criar grupo</button>
+      <p id="gmsg" class="hint"></p>
+    </div>
+    <script>
+      let gContatos = [];
+      function parseCSV(t){t=t.replace(/^\\uFEFF/,'');const o=[];let f='',r=[],q=false;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++;}else q=false;}else f+=c;}else{if(c=='"')q=true;else if(c==','){r.push(f);f='';}else if(c=='\\n'){r.push(f);o.push(r);r=[];f='';}else if(c=='\\r'){}else f+=c;}}if(f.length||r.length){r.push(f);o.push(r);}return o.filter(x=>x.some(y=>y.trim()!==''));}
+      document.getElementById('garq').onchange = ev => {
+        const file = ev.target.files[0]; if(!file) return;
+        const rd = new FileReader();
+        rd.onload = () => {
+          const linhas = parseCSV(rd.result); if(!linhas.length) return;
+          const head = linhas[0].map(h=>h.toLowerCase());
+          let iN = head.findIndex(h=>h.includes('nome'));
+          let iT = head.findIndex(h=>h.includes('numero')||h.includes('telefone')||h.includes('whats')||h.includes('fone'));
+          if(iT<0) iT = head.length-1; if(iN<0) iN = -1;
+          const vistos = new Set(); gContatos = [];
+          for(let k=1;k<linhas.length;k++){
+            const tel=(linhas[k][iT]||'').replace(/\\D/g,''); if(tel.length<10) continue;
+            if(vistos.has(tel)) continue; vistos.add(tel);
+            gContatos.push({nome: iN>=0?(linhas[k][iN]||''):'', telefone: tel});
+          }
+          document.getElementById('gresumo').innerHTML = '✅ <b>'+gContatos.length+'</b> contatos lidos do arquivo';
+        };
+        rd.readAsText(file,'UTF-8');
+      };
+      async function criarGrupo(){
+        const nome = document.getElementById('gnome').value.trim();
+        if(!nome) return alert('Dê um nome pro grupo.');
+        if(!gContatos.length) return alert('Carregue um arquivo CSV com os contatos.');
+        document.getElementById('gbtn').disabled = true;
+        document.getElementById('gmsg').innerText = 'Salvando...';
+        const r = await fetch('/contatos/criar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,contatos:gContatos})});
+        const j = await r.json();
+        if(j.ok){ location.href = '/contatos'; }
+        else { document.getElementById('gmsg').innerHTML = '❌ '+j.erro; document.getElementById('gbtn').disabled=false; }
+      }
+    </script>
+  `, req.user));
+});
+
+app.post('/contatos/criar', requireLogin, (req, res) => {
+  const nome = String(req.body.nome || '').trim() || 'Grupo';
+  const arr = Array.isArray(req.body.contatos) ? req.body.contatos : [];
+  const lista = []; const vistos = new Set();
+  for (const c of arr) {
+    const numero = comtele.foneComtele(String(c.telefone || c.numero || ''));
+    if (comtele.soDigitos(numero).length < 12) continue;
+    if (vistos.has(numero)) continue; vistos.add(numero);
+    lista.push({ nome: String(c.nome || '').trim(), numero });
+  }
+  if (!lista.length) return res.json({ ok: false, erro: 'Nenhum contato válido no arquivo.' });
+  const id = dao.criarGrupo(req.user.id, nome);
+  dao.addContatos(id, lista);
+  res.json({ ok: true, id, total: lista.length });
+});
+
+app.get('/contatos/:id', requireLogin, (req, res) => {
+  const g = dao.buscarGrupo(Number(req.params.id));
+  if (!g || g.user_id !== req.user.id) return res.status(404).send('Grupo não encontrado.');
+  const cs = dao.contatosDoGrupo(g.id);
+  const q = String(req.query.q || '').toLowerCase().trim();
+  const lista = q ? cs.filter(c => (c.nome || '').toLowerCase().includes(q) || (c.numero || '').includes(q)) : cs;
+  const linhas = lista.length
+    ? lista.slice(0, 1000).map(c => `<tr><td>${c.nome || '<span class="hint">(sem nome)</span>'}</td><td>${c.numero}</td></tr>`).join('')
+    : `<tr><td colspan="2" class="vazio">Nada encontrado.</td></tr>`;
+  res.send(layout(g.nome, `
+    <h1>📇 ${g.nome}</h1>
+    <p class="sub">${cs.length} contatos • <a href="/disparar?grupo=${g.id}">disparar pra esse grupo</a></p>
+    <form method="GET" style="margin-bottom:14px"><input name="q" value="${q.replace(/"/g, '')}" placeholder="🔎 Buscar nome ou número..."></form>
+    <table><thead><tr><th>Nome</th><th>Número</th></tr></thead><tbody>${linhas}</tbody></table>
+    <a class="btn cinza" href="/contatos" style="margin-top:14px">Voltar</a>
+  `, req.user));
+});
+
+app.post('/contatos/:id/apagar', requireLogin, (req, res) => {
+  const g = dao.buscarGrupo(Number(req.params.id));
+  if (g && g.user_id === req.user.id) dao.apagarGrupo(g.id);
+  res.redirect('/contatos');
+});
+
+app.get('/api/grupo/:id', requireLogin, (req, res) => {
+  const g = dao.buscarGrupo(Number(req.params.id));
+  if (!g || g.user_id !== req.user.id) return res.json({ ok: false, contatos: [] });
+  const contatos = dao.contatosDoGrupo(g.id).map(c => ({ nome: c.nome, telefone: c.numero }));
+  res.json({ ok: true, nome: g.nome, contatos });
 });
 
 // --- ADMIN (você): clientes, saldo, preço ---

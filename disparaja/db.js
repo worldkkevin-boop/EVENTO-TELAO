@@ -38,6 +38,21 @@ CREATE TABLE IF NOT EXISTS envios (
 );
 CREATE INDEX IF NOT EXISTS idx_envios_user ON envios(user_id);
 CREATE INDEX IF NOT EXISTS idx_envios_num ON envios(numero);
+CREATE TABLE IF NOT EXISTS grupos (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id   INTEGER NOT NULL,
+  nome      TEXT NOT NULL,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS contatos (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  grupo_id  INTEGER NOT NULL,
+  nome      TEXT,
+  numero    TEXT NOT NULL,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_grupos_user ON grupos(user_id);
+CREATE INDEX IF NOT EXISTS idx_contatos_grupo ON contatos(grupo_id);
 `);
 
 // --- senha (scrypt nativo, sem dependencia) ---
@@ -136,12 +151,47 @@ function todosNumerosNomes() {
   return db.prepare('SELECT DISTINCT numero, nome, user_id FROM envios').all();
 }
 
+// --- grupos de contatos (salvos pra reusar, com nome) ---
+function criarGrupo(userId, nome) {
+  const info = db.prepare('INSERT INTO grupos (user_id, nome) VALUES (?, ?)').run(userId, String(nome || 'Sem nome').trim());
+  return info.lastInsertRowid;
+}
+function addContatos(grupoId, lista) {
+  const stmt = db.prepare('INSERT INTO contatos (grupo_id, nome, numero) VALUES (?, ?, ?)');
+  db.exec('BEGIN');
+  try {
+    for (const c of lista) stmt.run(grupoId, String(c.nome || ''), String(c.numero));
+    db.exec('COMMIT');
+  } catch (e) { try { db.exec('ROLLBACK'); } catch (_) {} throw e; }
+}
+function listarGrupos(userId) {
+  return db.prepare(`SELECT g.id, g.nome, g.criado_em,
+    (SELECT COUNT(*) FROM contatos c WHERE c.grupo_id = g.id) AS total
+    FROM grupos g WHERE g.user_id = ? ORDER BY g.id DESC`).all(userId);
+}
+function buscarGrupo(id) {
+  return db.prepare('SELECT * FROM grupos WHERE id = ?').get(id);
+}
+function contatosDoGrupo(grupoId) {
+  return db.prepare('SELECT nome, numero FROM contatos WHERE grupo_id = ?').all(grupoId);
+}
+function apagarGrupo(grupoId) {
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM contatos WHERE grupo_id = ?').run(grupoId);
+    db.prepare('DELETE FROM grupos WHERE id = ?').run(grupoId);
+    db.exec('COMMIT');
+  } catch (e) { try { db.exec('ROLLBACK'); } catch (_) {} }
+}
+
 // Apaga o cliente e o historico dele
 function apagarUsuario(userId) {
   try {
     db.exec('BEGIN');
     db.prepare('DELETE FROM transacoes WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM envios WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM contatos WHERE grupo_id IN (SELECT id FROM grupos WHERE user_id = ?)').run(userId);
+    db.prepare('DELETE FROM grupos WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
     db.exec('COMMIT');
     return { ok: true };
@@ -155,4 +205,5 @@ module.exports = {
   listarUsuarios, definirPreco, tornarAdmin,
   totalGasto, apagarUsuario,
   registrarEnvio, numerosNomesDoUsuario, todosNumerosNomes,
+  criarGrupo, addContatos, listarGrupos, buscarGrupo, contatosDoGrupo, apagarGrupo,
 };
