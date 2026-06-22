@@ -57,4 +57,18 @@ async function consultarSaldo() {
   return { ok: false };
 }
 
-module.exports = { enviarSMS, personaliza, foneComtele, soDigitos, consultarSaldo, relatorioEnviadas };
+// Mensagens RECEBIDAS (respostas dos destinatarios, ex: quem mandou SAIR).
+async function relatorioRecebidas(startDate, limit = 300) {
+  const apiKey = process.env.COMTELE_API_KEY || '';
+  if (!apiKey) return { ok: false, itens: [] };
+  try {
+    const url = 'https://api.comtele.com.br/reports/messages/received?startDate=' +
+      encodeURIComponent(startDate) + '&limit=' + encodeURIComponent(limit);
+    const r = await fetch(url, { headers: { 'x-api-key': apiKey } });
+    const d = await r.json();
+    if (d && Array.isArray(d.object)) return { ok: true, itens: d.object };
+  } catch (e) { /* rede instavel */ }
+  return { ok: false, itens: [] };
+}
+
+module.exports = { enviarSMS, personaliza, foneComtele, soDigitos, consultarSaldo, relatorioEnviadas, relatorioRecebidas };

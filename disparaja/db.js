@@ -29,6 +29,15 @@ CREATE TABLE IF NOT EXISTS transacoes (
 );
 CREATE INDEX IF NOT EXISTS idx_trans_user ON transacoes(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_trans_ref ON transacoes(ref) WHERE ref IS NOT NULL;
+CREATE TABLE IF NOT EXISTS envios (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id   INTEGER NOT NULL,
+  nome      TEXT,
+  numero    TEXT NOT NULL,                -- com 55 (ex: 5596991767788)
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_envios_user ON envios(user_id);
+CREATE INDEX IF NOT EXISTS idx_envios_num ON envios(numero);
 `);
 
 // --- senha (scrypt nativo, sem dependencia) ---
@@ -115,11 +124,24 @@ function totalGasto(userId) {
   const r = db.prepare("SELECT COALESCE(-SUM(valor), 0) AS gasto FROM transacoes WHERE user_id = ? AND tipo = 'envio'").get(userId);
   return r ? r.gasto : 0;
 }
+// --- envios (pra cruzar com as respostas/SAIR e mostrar o nome) ---
+function registrarEnvio(userId, nome, numero) {
+  db.prepare('INSERT INTO envios (user_id, nome, numero) VALUES (?, ?, ?)').run(userId, String(nome || ''), String(numero));
+}
+// Mapa numero(so digitos) -> nome, dos contatos pra quem o cliente ja mandou
+function numerosNomesDoUsuario(userId) {
+  return db.prepare('SELECT DISTINCT numero, nome FROM envios WHERE user_id = ?').all(userId);
+}
+function todosNumerosNomes() {
+  return db.prepare('SELECT DISTINCT numero, nome, user_id FROM envios').all();
+}
+
 // Apaga o cliente e o historico dele
 function apagarUsuario(userId) {
   try {
     db.exec('BEGIN');
     db.prepare('DELETE FROM transacoes WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM envios WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
     db.exec('COMMIT');
     return { ok: true };
@@ -132,4 +154,5 @@ module.exports = {
   recarregar, debitar, listarTransacoes,
   listarUsuarios, definirPreco, tornarAdmin,
   totalGasto, apagarUsuario,
+  registrarEnvio, numerosNomesDoUsuario, todosNumerosNomes,
 };

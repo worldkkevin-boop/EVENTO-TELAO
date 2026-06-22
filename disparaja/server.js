@@ -63,7 +63,7 @@ function requireAdmin(req, res, next) {
 // --- layout base (HTML compartilhado) ---
 function layout(title, body, user) {
   const nav = user
-    ? `<a href="/">Painel</a><a href="/disparar">Disparar</a><a href="/relatorio">📊 Relatórios</a><a href="/planos">Comprar créditos</a>${ehAdmin(user) ? '<a href="/admin">👑 Admin</a>' : ''}<a href="/sair">Sair</a>`
+    ? `<a href="/">Painel</a><a href="/disparar">Disparar</a><a href="/relatorio">📊 Relatórios</a><a href="/respostas">💬 Respostas</a><a href="/planos">Comprar créditos</a>${ehAdmin(user) ? '<a href="/admin">👑 Admin</a>' : ''}<a href="/sair">Sair</a>`
     : `<a href="/login">Entrar</a><a href="/cadastro">Criar conta</a>`;
   return `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -245,10 +245,12 @@ app.get('/disparar', requireLogin, (req, res) => {
       <p id="resumoLista" class="hint"></p>
 
       <label style="margin-top:14px">2. Mensagem (use {nome} pra personalizar)</label>
-      <textarea id="msg" rows="4" oninput="contar()" placeholder="Olá {nome}! ... Responda SAIR para não receber."></textarea>
+      <textarea id="msg" rows="4" oninput="contar()" placeholder="Olá {nome}! Escreva sua mensagem aqui."></textarea>
       <p class="hint"><span id="cChars">0</span> caracteres • <span id="cCusto">R$ 0,00</span> estimado</p>
+      <p class="hint">💡 Pra descadastro, dá pra terminar com um discreto <i>"SAIR p/ sair"</i>.</p>
 
       <button class="btn azul" id="btnEnviar" onclick="disparar()" style="margin-top:8px">🚀 Disparar agora</button>
+      <p class="hint">⏳ O envio sai aos poucos pra garantir a entrega — listas grandes podem levar alguns minutos. Pode deixar a página aberta.</p>
       <div id="prog" style="display:none;margin-top:14px">
         <div class="barra"><div id="barraFill"></div></div>
         <p class="hint"><span id="pInfo">0 / 0</span> • <span id="pOk">0</span> enviados • <span id="pFail">0</span> falhas</p>
@@ -352,6 +354,7 @@ app.post('/api/disparar', requireLogin, (req, res) => {
       const r = await comtele.enviarSMS(c.telefone, comtele.personaliza(mensagem, c.nome), 'u' + job.userId);
       if (r.ok) {
         dao.debitar(job.userId, preco, 'SMS para ' + c.telefone);
+        dao.registrarEnvio(job.userId, c.nome, comtele.foneComtele(c.telefone));
         job.enviados++;
       } else {
         job.fail++; // falhou na Comtele: NAO desconta saldo
@@ -379,6 +382,7 @@ app.post('/api/teste', requireLogin, async (req, res) => {
   const r = await comtele.enviarSMS(numero, msg, 'u' + req.user.id);
   if (!r.ok) return res.json({ ok: false, erro: 'Não consegui enviar agora (' + r.msg + ').' });
   dao.debitar(req.user.id, preco, 'SMS de teste para ' + numero);
+  dao.registrarEnvio(req.user.id, 'Teste', comtele.foneComtele(numero));
   res.json({ ok: true, saldo: reais(dao.buscarPorId(req.user.id).saldo) });
 });
 
@@ -410,6 +414,51 @@ app.get('/relatorio', requireLogin, async (req, res) => {
     <h1>📊 Relatórios de entrega</h1>
     <p class="sub">Status real de cada SMS (puxado da Comtele) — últimos 30 dias.${ehAdmin(req.user) ? (verTodos ? ' • <a href="/relatorio">ver só os meus</a>' : ' • <a href="/relatorio?todos=1">ver de todos os clientes</a>') : ''}</p>
     <table><thead><tr><th>Quando</th><th>Número</th><th>Mensagem</th><th>Status</th></tr></thead>
+    <tbody>${linhas}</tbody></table>
+  `, req.user));
+});
+
+// --- RESPOSTAS & DESCADASTROS (quem respondeu / mandou SAIR) ---
+app.get('/respostas', requireLogin, async (req, res) => {
+  const startDate = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const verTodos = ehAdmin(req.user) && req.query.todos === '1';
+  const rep = await comtele.relatorioRecebidas(startDate, 300);
+
+  // mapa numero(so digitos) -> nome, com base em quem o cliente ja mandou
+  const mapa = new Map();
+  const fonte = verTodos ? dao.todosNumerosNomes() : dao.numerosNomesDoUsuario(req.user.id);
+  fonte.forEach(r => mapa.set(comtele.soDigitos(r.numero), r.nome || ''));
+
+  const ehSair = c => /\b(sair|parar|cancelar|cancela|descadastr|remover|stop)\b/i.test(c || '');
+  const q = String(req.query.q || '').toLowerCase().trim();
+  const fmtData = iso => { try { return new Date(iso).toLocaleString('pt-BR'); } catch (e) { return iso || ''; } };
+
+  let itens = (rep.itens || []).map(m => {
+    const dig = comtele.soDigitos(m.sender);
+    return { sender: m.sender, content: m.content, receivedAt: m.receivedAt, nome: mapa.get(dig) || '', conhecido: mapa.has(dig), sair: ehSair(m.content) };
+  });
+  if (!verTodos) itens = itens.filter(m => m.conhecido); // cliente ve so quem ele mandou
+  if (q) itens = itens.filter(m => (m.nome || '').toLowerCase().includes(q) || (m.sender || '').includes(q) || (m.content || '').toLowerCase().includes(q));
+
+  const linhas = itens.length ? itens.map(m => `<tr>
+      <td>${fmtData(m.receivedAt)}</td>
+      <td>${m.nome || '<span class="hint">(sem nome)</span>'}</td>
+      <td>${m.sender || ''}</td>
+      <td>${(m.content || '').slice(0, 50)}</td>
+      <td>${m.sair
+        ? '<span style="background:#ef4444;color:#fff;padding:3px 10px;border-radius:999px;font-size:.74rem;font-weight:700">❌ Pediu pra sair</span>'
+        : '<span style="background:#2a3650;color:#cdd9ee;padding:3px 10px;border-radius:999px;font-size:.74rem">💬 Respondeu</span>'}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="5" class="vazio">${rep.ok ? 'Nenhuma resposta no período.' : 'Não consegui consultar a Comtele agora.'}</td></tr>`;
+
+  res.send(layout('Respostas', `
+    <h1>💬 Respostas & descadastros</h1>
+    <p class="sub">Quem respondeu seus SMS — e quem pediu pra sair. Últimos 30 dias.${ehAdmin(req.user) ? (verTodos ? ' • <a href="/respostas">só os meus</a>' : ' • <a href="/respostas?todos=1">de todos os clientes</a>') : ''}</p>
+    <form method="GET" action="/respostas" style="margin-bottom:14px">
+      ${verTodos ? '<input type="hidden" name="todos" value="1">' : ''}
+      <input name="q" value="${q.replace(/"/g, '')}" placeholder="🔎 Buscar por nome, número ou texto...">
+    </form>
+    <table><thead><tr><th>Quando</th><th>Nome</th><th>Número</th><th>Resposta</th><th>Status</th></tr></thead>
     <tbody>${linhas}</tbody></table>
   `, req.user));
 });
