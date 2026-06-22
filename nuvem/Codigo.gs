@@ -21,6 +21,9 @@ function getSheet() {
     sheet = ss.insertSheet(SHEET_NAME);
     sheet.appendRow(['Evento', 'Nome', 'WhatsApp', 'Hora']);
   }
+  // Garante que a coluna do WhatsApp (C) seja sempre TEXTO.
+  // Sem isso o Sheets transforma o número em notação científica (ex: 9.69E10).
+  sheet.getRange('C:C').setNumberFormat('@');
   return sheet;
 }
 
@@ -62,6 +65,10 @@ function registrarPresenca(nome, whatsapp, evento) {
   if (!nome || !whatsapp) {
     throw new Error('Preencha nome e WhatsApp.');
   }
-  getSheet().appendRow([evento, nome, whatsapp, new Date()]);
+  const sheet = getSheet();
+  sheet.appendRow([evento, nome, '', new Date()]); // grava sem o WhatsApp ainda
+  // Escreve o WhatsApp já como TEXTO na célula nova (não vira notação científica)
+  const linha = sheet.getLastRow();
+  sheet.getRange(linha, 3).setNumberFormat('@').setValue(whatsapp);
   return totalPresencas();
 }
