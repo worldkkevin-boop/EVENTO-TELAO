@@ -72,7 +72,7 @@ function layout(title, body, user) {
 <link rel="stylesheet" href="/static/style.css">
 </head><body>
 <header><div class="logo">📨 DisparaJá</div><nav>${nav}</nav>
-${user ? `<div class="saldo">Saldo: <b>${reais(user.saldo)}</b></div>` : ''}</header>
+${user ? `<div class="saldo">Saldo: <b id="hdrSaldo">${reais(user.saldo)}</b></div>` : ''}</header>
 <main>${body}</main>
 <script>(function(){var p=location.pathname;document.querySelectorAll('header nav a').forEach(function(a){var h=a.getAttribute('href');if(h===p||(h!=='/'&&h!=='/sair'&&p.indexOf(h)===0))a.classList.add('ativo');});})();</script>
 </body></html>`;
@@ -122,6 +122,7 @@ app.get('/', (req, res) => {
           const r = await fetch('/api/teste',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({numero})});
           const j = await r.json();
           res.innerHTML = j.ok ? '✅ Enviado! Olha teu celular. Novo saldo: <b>'+j.saldo+'</b> • <a href="/relatorio">ver status de entrega →</a>' : '❌ '+j.erro;
+          if(j.ok){ const hs=document.getElementById('hdrSaldo'); if(hs) hs.innerText=j.saldo; const sc=document.querySelector('.card .n'); if(sc) sc.innerText=j.saldo; }
         }catch(e){ res.innerText = '❌ Erro: '+e.message; }
       }
     </script>
@@ -335,6 +336,7 @@ app.get('/disparar', requireLogin, (req, res) => {
           document.getElementById('pInfo').innerText = feitos+' / '+s.total;
           document.getElementById('pOk').innerText = s.enviados;
           document.getElementById('pFail').innerText = s.fail;
+          if(s.saldo){ const hs=document.getElementById('hdrSaldo'); if(hs) hs.innerText=s.saldo; }
           if(s.terminado){
             clearInterval(timer);
             document.getElementById('btnEnviar').disabled = false;
@@ -432,7 +434,8 @@ app.post('/api/disparo-retomar', requireLogin, (req, res) => {
 });
 
 function statusJob(job) {
-  return { total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou, restam: (job.restantes || []).length };
+  const u = dao.buscarPorId(job.userId);
+  return { total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou, restam: (job.restantes || []).length, saldo: u ? reais(u.saldo) : null };
 }
 app.get('/api/disparo-status', requireLogin, (req, res) => {
   const job = disparoJobs.get(req.query.id);
