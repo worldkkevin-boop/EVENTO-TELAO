@@ -107,7 +107,7 @@ let broadcaster;
 let adTimer = null; // Controla o timer do anuncio L-Shape
 let disparoCancel = false; // botao "parar" do disparo de SMS
 
-// --- SMS via SMSdev (https://www.smsdev.com.br) — prepago, aceita CPF ---
+// --- SMS via Comtele (https://docs.comtele.com.br) ---
 function soDigitos(t) { return String(t == null ? '' : t).replace(/\D/g, ''); }
 function comCodigoPais(t) { let d = soDigitos(t); if (d && !d.startsWith('55')) d = '55' + d; return d; }
 // Troca {nome} pelo primeiro nome (msg mais pessoal e curta pro SMS)
@@ -115,17 +115,16 @@ function personaliza(msg, nome) {
     const primeiro = String(nome || '').trim().split(/\s+/)[0] || '';
     return String(msg || '').replace(/\{nome\}/gi, primeiro);
 }
-// Envia 1 SMS. number = só dígitos com 55 (ex: 5596991767788). type=9 = SMS.
-async function smsdevSend(apiKey, number, content) {
-    if (!apiKey) return { ok: false, data: { descricao: 'Sem chave de API' } };
-    const url = 'https://api.smsdev.com.br/v1/send?key=' + encodeURIComponent(apiKey)
-        + '&type=9&number=' + encodeURIComponent(number)
-        + '&msg=' + encodeURIComponent(content);
-    const resp = await fetch(url);
+async function comteleSend(apiKey, sender, receivers, content) {
+    if (!apiKey) return { ok: false, data: { Message: 'Sem chave de API' } };
+    const resp = await fetch('https://sms.comtele.com.br/api/v2/send', {
+        method: 'POST',
+        headers: { 'auth-key': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Sender: sender || '', Receivers: receivers, Content: content })
+    });
     let data = {};
     try { data = await resp.json(); } catch (e) { /* resposta sem JSON */ }
-    const ok = resp.ok && String(data.situacao || '').toUpperCase() === 'OK';
-    return { ok, data };
+    return { ok: resp.ok && data.Success !== false, data };
 }
 
 io.on('connection', (socket) => {
@@ -287,9 +286,9 @@ io.on('connection', (socket) => {
     // Envia 1 SMS personalizado. A chave de API vem do painel (nao fica salva no servidor).
     socket.on('sms-test', async (dados, cb) => {
         try {
-            const r = await smsdevSend(dados.apiKey, comCodigoPais(dados.numero), personaliza(dados.msg, dados.nome || 'Teste'));
+            const r = await comteleSend(dados.apiKey, dados.sender, comCodigoPais(dados.numero), personaliza(dados.msg, dados.nome || 'Teste'));
             if (cb) cb(r);
-        } catch (e) { if (cb) cb({ ok: false, data: { descricao: e.message } }); }
+        } catch (e) { if (cb) cb({ ok: false, data: { Message: e.message } }); }
     });
 
     // Cancela um disparo em andamento
@@ -311,10 +310,10 @@ io.on('connection', (socket) => {
             }
             const c = contatos[i];
             let res;
-            try { res = await smsdevSend(dados.apiKey, comCodigoPais(c.telefone), personaliza(dados.msg, c.nome)); }
-            catch (e) { res = { ok: false, data: { descricao: e.message } }; }
+            try { res = await comteleSend(dados.apiKey, dados.sender, comCodigoPais(c.telefone), personaliza(dados.msg, c.nome)); }
+            catch (e) { res = { ok: false, data: { Message: e.message } }; }
             if (res.ok) ok++;
-            else { fail++; falhas.push({ nome: c.nome, telefone: c.telefone, erro: (res.data && (res.data.descricao || res.data.Message)) || 'falha' }); }
+            else { fail++; falhas.push({ nome: c.nome, telefone: c.telefone, erro: (res.data && res.data.Message) || 'falha' }); }
             socket.emit('sms-progresso', { i: i + 1, total, ok, fail, nome: c.nome, ultimoOk: !!res.ok });
             if (i < total - 1) await new Promise(r => setTimeout(r, espera));
         }
