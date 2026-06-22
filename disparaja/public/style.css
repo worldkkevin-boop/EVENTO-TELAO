@@ -140,3 +140,16 @@ input:focus, textarea:focus, select:focus{outline:none; border-color:var(--azul)
 .cta-final{text-align:center; margin:44px 0 10px; padding:36px 16px; background:linear-gradient(135deg,rgba(37,99,235,.16),rgba(124,58,237,.16)); border:1px solid var(--linha); border-radius:20px}
 .cta-final h2{margin:0 0 18px}
 @media(max-width:560px){.hero h1{font-size:2rem}}
+
+/* MOBILE: header arruma o menu (logo+saldo em cima, abas rolando de lado) */
+@media(max-width:760px){
+  header{flex-wrap:wrap; gap:10px; padding:12px 14px}
+  header .logo{font-size:1.1rem}
+  header .saldo{margin-left:auto; order:2}
+  header nav{order:3; width:100%; flex-wrap:nowrap; overflow-x:auto; gap:4px; padding-bottom:2px; -webkit-overflow-scrolling:touch}
+  header nav::-webkit-scrollbar{height:0}
+  header nav a{white-space:nowrap; padding:7px 10px; font-size:.84rem}
+  main{padding:20px 14px 50px}
+  .cards{gap:10px}
+  .card{min-width:140px}
+}
