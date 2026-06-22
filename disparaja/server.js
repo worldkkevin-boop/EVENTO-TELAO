@@ -254,10 +254,10 @@ app.get('/disparar', requireLogin, (req, res) => {
       <textarea id="colar" rows="3" placeholder="Cole números separados por vírgula ou um por linha (ex: 11999998888, 11988887777)"></textarea>
       <p id="resumoLista" class="hint"></p>
 
-      <label style="margin-top:14px">2. Mensagem (use {nome} pra personalizar)</label>
-      <textarea id="msg" rows="4" oninput="contar()" placeholder="Olá {nome}! Escreva sua mensagem aqui."></textarea>
+      <label style="margin-top:14px">2. Mensagem (use {nome} pra personalizar) — <a href="#" onclick="usarModelo();return false">📝 usar modelo</a></label>
+      <textarea id="msg" rows="4" oninput="contar()" placeholder="Olá {nome}! Aqui é da [sua empresa]. (seu aviso aqui). Não precisa responder."></textarea>
       <p class="hint"><span id="cChars">0</span> caracteres • <span id="cCusto">R$ 0,00</span> estimado</p>
-      <p class="hint">💡 Pra descadastro, dá pra terminar com um discreto <i>"SAIR p/ sair"</i>.</p>
+      <p class="hint">💡 Dica: diga <b>quem é</b> logo no início e <b>não peça resposta</b> — assim quase ninguém responde (você gasta menos). O <i>"SAIR p/ sair"</i> discreto já cobre o descadastro.</p>
 
       <button class="btn azul" id="btnEnviar" onclick="disparar()" style="margin-top:8px">🚀 Disparar agora</button>
       <p class="hint">⏳ O envio sai aos poucos pra garantir a entrega — listas grandes podem levar alguns minutos. Pode deixar a página aberta.</p>
@@ -318,6 +318,10 @@ app.get('/disparar', requireLogin, (req, res) => {
         const n = document.getElementById('msg').value.length;
         document.getElementById('cChars').innerText = n;
         document.getElementById('cCusto').innerText = fmt(contatos.length*PRECO);
+      }
+      function usarModelo(){
+        document.getElementById('msg').value = 'Ola {nome}! Aqui e da [SUA EMPRESA]. (escreva seu aviso aqui). Nao precisa responder. SAIR p/ sair';
+        contar();
       }
       let timer;
       function acompanhar(jobId){
