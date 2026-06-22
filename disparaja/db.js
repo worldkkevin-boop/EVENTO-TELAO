@@ -110,10 +110,26 @@ function definirPreco(userId, centavos) {
 function tornarAdmin(email) {
   db.prepare('UPDATE users SET is_admin = 1 WHERE email = ?').run(String(email).toLowerCase().trim());
 }
+// Quanto o cliente JA gastou em SMS (centavos, numero positivo)
+function totalGasto(userId) {
+  const r = db.prepare("SELECT COALESCE(-SUM(valor), 0) AS gasto FROM transacoes WHERE user_id = ? AND tipo = 'envio'").get(userId);
+  return r ? r.gasto : 0;
+}
+// Apaga o cliente e o historico dele
+function apagarUsuario(userId) {
+  try {
+    db.exec('BEGIN');
+    db.prepare('DELETE FROM transacoes WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    db.exec('COMMIT');
+    return { ok: true };
+  } catch (e) { try { db.exec('ROLLBACK'); } catch (_) {} return { ok: false, motivo: e.message }; }
+}
 
 module.exports = {
   db, hashSenha, conferirSenha,
   criarUsuario, buscarPorEmail, buscarPorId,
   recarregar, debitar, listarTransacoes,
   listarUsuarios, definirPreco, tornarAdmin,
+  totalGasto, apagarUsuario,
 };

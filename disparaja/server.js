@@ -21,7 +21,9 @@ const MP_TOKEN = process.env.MP_ACCESS_TOKEN || '';
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+const SqliteStore = require('./sessionStore')(session, dao.db);
 app.use(session({
+  store: new SqliteStore(),
   secret: process.env.SESSION_SECRET || 'troque-isto-em-producao',
   resave: false,
   saveUninitialized: false,
@@ -353,6 +355,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
     <td>${u.id}</td>
     <td>${u.nome}<br><span class="hint">${u.email}</span>${ehAdmin(u) ? ' 👑' : ''}</td>
     <td><b>${reais(u.saldo)}</b></td>
+    <td>${reais(dao.totalGasto(u.id))}</td>
     <td>${reais(u.preco_sms)}</td>
     <td>
       <form method="POST" action="/admin/creditar" class="inline">
@@ -365,6 +368,10 @@ app.get('/admin', requireAdmin, async (req, res) => {
         <input name="preco" placeholder="${(u.preco_sms/100).toFixed(2)}" style="width:60px">
         <button class="btn cinza mini">preço</button>
       </form>
+      ${ehAdmin(u) ? '' : `<form method="POST" action="/admin/apagar" class="inline" onsubmit="return confirm('Apagar ${u.nome.replace(/[^a-zA-Z0-9 ]/g, '')} e todo o histórico? Não dá pra desfazer.')">
+        <input type="hidden" name="userId" value="${u.id}">
+        <button class="btn mini" style="background:#ef4444">🗑️</button>
+      </form>`}
     </td></tr>`).join('');
   res.send(layout('Admin', `
     <h1>👑 Admin</h1>
@@ -376,7 +383,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
       <div class="card"><div class="l">Clientes</div><div class="n">${users.length}</div></div>
     </div>
     ${req.query.ok ? `<p class="hint" style="color:#4ade80">✅ ${req.query.ok}</p>` : ''}
-    <table><thead><tr><th>#</th><th>Cliente</th><th>Saldo</th><th>Preço/SMS</th><th>Ações</th></tr></thead>
+    <table><thead><tr><th>#</th><th>Cliente</th><th>Saldo</th><th>Gasto</th><th>Preço/SMS</th><th>Ações</th></tr></thead>
     <tbody>${linhas}</tbody></table>
     <style>.inline{display:inline-block;margin:2px}.btn.mini{padding:6px 10px;font-size:.8rem}
     .inline input{padding:6px;border:1px solid #475569;border-radius:6px;background:var(--bg);color:var(--txt)}</style>
@@ -395,6 +402,14 @@ app.post('/admin/preco', requireAdmin, (req, res) => {
   const centavos = centavosDe(req.body.preco);
   if (userId && centavos > 0) dao.definirPreco(userId, centavos);
   res.redirect('/admin?ok=' + encodeURIComponent('Preço por SMS atualizado.'));
+});
+
+app.post('/admin/apagar', requireAdmin, (req, res) => {
+  const userId = Number(req.body.userId);
+  const alvo = dao.buscarPorId(userId);
+  // Nao deixa apagar admin nem a propria conta
+  if (userId && alvo && !ehAdmin(alvo) && userId !== req.user.id) dao.apagarUsuario(userId);
+  res.redirect('/admin?ok=' + encodeURIComponent('Cliente apagado.'));
 });
 
 // --- CADASTRO ---
