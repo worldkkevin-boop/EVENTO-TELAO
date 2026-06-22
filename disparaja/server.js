@@ -5,6 +5,10 @@ const express = require('express');
 const session = require('express-session');
 const path = require('node:path');
 const dao = require('./db');
+const comtele = require('./comtele');
+
+// Jobs de disparo em andamento (em memoria): jobId -> progresso
+const disparoJobs = new Map();
 
 // Carrega segredos do .env (se existir): MP_ACCESS_TOKEN, SESSION_SECRET, etc.
 try { process.loadEnvFile(path.join(__dirname, '.env')); } catch (e) { /* sem .env: usa defaults */ }
@@ -189,13 +193,141 @@ app.post('/webhook/mp', async (req, res) => {
   } catch (e) { /* ignora */ }
 });
 
-// --- DISPARO — proximo passo ---
+// --- DISPARO DE SMS ---
 app.get('/disparar', requireLogin, (req, res) => {
   res.send(layout('Disparar', `
     <h1>Disparar SMS</h1>
-    <p class="sub">⏳ Em breve: subir a lista, escrever a mensagem e disparar (desconta do seu saldo).</p>
-    <a class="btn cinza" href="/">Voltar ao painel</a>
+    <p class="sub">Saldo: <b>${reais(req.user.saldo)}</b> • Cada SMS custa <b>${reais(req.user.preco_sms)}</b> do seu saldo.</p>
+    <div class="card" style="display:block">
+      <label>1. Lista de contatos</label>
+      <input type="file" id="arquivo" accept=".csv">
+      <p class="hint">CSV com coluna <b>Numero</b> (e <b>Nome</b> se quiser personalizar). Ou cole abaixo:</p>
+      <textarea id="colar" rows="3" placeholder="Cole números separados por vírgula ou um por linha (ex: 96991767788, 96988887777)"></textarea>
+      <p id="resumoLista" class="hint"></p>
+
+      <label style="margin-top:14px">2. Mensagem (use {nome} pra personalizar)</label>
+      <textarea id="msg" rows="4" oninput="contar()" placeholder="Olá {nome}! ... Responda SAIR para não receber."></textarea>
+      <p class="hint"><span id="cChars">0</span> caracteres • <span id="cCusto">R$ 0,00</span> estimado</p>
+
+      <button class="btn azul" id="btnEnviar" onclick="disparar()" style="margin-top:8px">🚀 Disparar agora</button>
+      <div id="prog" style="display:none;margin-top:14px">
+        <div class="barra"><div id="barraFill"></div></div>
+        <p class="hint"><span id="pInfo">0 / 0</span> • <span id="pOk">0</span> enviados • <span id="pFail">0</span> falhas</p>
+      </div>
+      <p id="resultado" class="hint"></p>
+    </div>
+    <a class="btn cinza" href="/" style="margin-top:14px">Voltar ao painel</a>
+    <style>
+      textarea{width:100%;padding:10px;border:1px solid #475569;border-radius:8px;background:var(--bg);color:var(--txt);font-family:inherit;font-size:.95rem;resize:vertical}
+      .barra{height:14px;background:#0b1220;border-radius:8px;overflow:hidden;border:1px solid var(--linha)}
+      .barra>div{height:100%;width:0;background:var(--ok);transition:width .3s}
+    </style>
+    <script>
+      const PRECO = ${req.user.preco_sms};
+      let contatos = [];
+      function fmt(c){return 'R$ '+(c/100).toFixed(2).replace('.',',');}
+      function parseCSV(t){t=t.replace(/^﻿/,'');return t.split(/\\r?\\n/).map(l=>l.split(',').map(x=>x.replace(/^"|"$/g,'').trim())).filter(r=>r.some(x=>x!==''));}
+      function montar(){
+        document.getElementById('resumoLista').innerHTML = contatos.length
+          ? '✅ <b>'+contatos.length+'</b> contatos carregados' : '';
+        contar();
+      }
+      document.getElementById('arquivo').onchange = ev => {
+        const f = ev.target.files[0]; if(!f) return;
+        const r = new FileReader();
+        r.onload = () => {
+          const linhas = parseCSV(r.result); if(!linhas.length) return;
+          const head = linhas[0].map(h=>h.toLowerCase());
+          let iN = head.findIndex(h=>h.includes('nome'));
+          let iT = head.findIndex(h=>h.includes('numero')||h.includes('telefone')||h.includes('whats')||h.includes('fone'));
+          if(iT<0) iT = head.length-1; if(iN<0) iN = -1;
+          const vistos = new Set(); contatos = [];
+          for(let k=1;k<linhas.length;k++){
+            const tel=(linhas[k][iT]||'').replace(/\\D/g,''); if(tel.length<10) continue;
+            if(vistos.has(tel)) continue; vistos.add(tel);
+            contatos.push({nome: iN>=0?(linhas[k][iN]||''):'', telefone: tel});
+          }
+          montar();
+        };
+        r.readAsText(f,'UTF-8');
+      };
+      document.getElementById('colar').oninput = ev => {
+        const vistos = new Set(); contatos = [];
+        ev.target.value.split(/[,;\\n]/).forEach(x=>{const t=x.replace(/\\D/g,''); if(t.length>=10&&!vistos.has(t)){vistos.add(t);contatos.push({nome:'',telefone:t});}});
+        montar();
+      };
+      function contar(){
+        const n = document.getElementById('msg').value.length;
+        document.getElementById('cChars').innerText = n;
+        document.getElementById('cCusto').innerText = fmt(contatos.length*PRECO);
+      }
+      let timer;
+      async function disparar(){
+        const msg = document.getElementById('msg').value.trim();
+        if(!contatos.length) return alert('Carregue ou cole a lista de contatos.');
+        if(!msg) return alert('Escreva a mensagem.');
+        if(!confirm('Disparar para '+contatos.length+' contatos?\\nCusto: '+fmt(contatos.length*PRECO)+' do seu saldo.')) return;
+        document.getElementById('btnEnviar').disabled = true;
+        document.getElementById('prog').style.display = 'block';
+        document.getElementById('resultado').innerText = '';
+        const r = await fetch('/api/disparar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contatos,mensagem:msg})});
+        const j = await r.json();
+        if(!j.ok){ document.getElementById('resultado').innerHTML='❌ '+j.erro; document.getElementById('btnEnviar').disabled=false; return; }
+        timer = setInterval(async ()=>{
+          const s = await (await fetch('/api/disparo-status?id='+j.jobId)).json();
+          document.getElementById('barraFill').style.width = (s.total?Math.round((s.enviados+s.fail)/s.total*100):0)+'%';
+          document.getElementById('pInfo').innerText = (s.enviados+s.fail)+' / '+s.total;
+          document.getElementById('pOk').innerText = s.enviados;
+          document.getElementById('pFail').innerText = s.fail;
+          if(s.terminado){
+            clearInterval(timer);
+            document.getElementById('btnEnviar').disabled=false;
+            document.getElementById('resultado').innerHTML = '✅ Concluído! '+s.enviados+' enviados, '+s.fail+' falhas.'+(s.parou?' (parou: '+s.parou+')':'');
+          }
+        },1500);
+      }
+      contar();
+    </script>
   `, req.user));
+});
+
+// Inicia o disparo (em background) e devolve um jobId pra acompanhar o progresso
+app.post('/api/disparar', requireLogin, (req, res) => {
+  const contatos = Array.isArray(req.body.contatos) ? req.body.contatos : [];
+  const mensagem = String(req.body.mensagem || '').trim();
+  if (!contatos.length) return res.json({ ok: false, erro: 'Lista vazia.' });
+  if (!mensagem) return res.json({ ok: false, erro: 'Mensagem vazia.' });
+  const preco = req.user.preco_sms;
+  if (req.user.saldo < preco) return res.json({ ok: false, erro: 'Saldo insuficiente. Compre créditos.' });
+
+  const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const job = { userId: req.user.id, total: contatos.length, enviados: 0, fail: 0, terminado: false, parou: null };
+  disparoJobs.set(jobId, job);
+  res.json({ ok: true, jobId });
+
+  (async () => {
+    for (let i = 0; i < contatos.length; i++) {
+      const c = contatos[i];
+      const u = dao.buscarPorId(job.userId);
+      if (!u || u.saldo < preco) { job.parou = 'saldo acabou'; break; }
+      const r = await comtele.enviarSMS(c.telefone, comtele.personaliza(mensagem, c.nome));
+      if (r.ok) {
+        dao.debitar(job.userId, preco, 'SMS para ' + c.telefone);
+        job.enviados++;
+      } else {
+        job.fail++; // falhou na Comtele: NAO desconta saldo
+      }
+      if (i < contatos.length - 1) await new Promise(r => setTimeout(r, 500)); // throttle
+    }
+    job.terminado = true;
+    setTimeout(() => disparoJobs.delete(jobId), 5 * 60 * 1000); // limpa depois de 5 min
+  })();
+});
+
+app.get('/api/disparo-status', requireLogin, (req, res) => {
+  const job = disparoJobs.get(req.query.id);
+  if (!job || job.userId !== req.user.id) return res.json({ terminado: true, total: 0, enviados: 0, fail: 0 });
+  res.json({ total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou });
 });
 
 // --- CADASTRO ---
