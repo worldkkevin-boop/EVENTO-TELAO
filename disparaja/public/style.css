@@ -1,39 +1,110 @@
-:root{--azul:#2563eb;--azul2:#1d4ed8;--ok:#16a34a;--erro:#ef4444;--bg:#0f172a;--card:#1e293b;--linha:#334155;--txt:#e2e8f0;--mut:#94a3b8}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --azul:#2563eb; --azul2:#1d4ed8; --roxo:#7c3aed;
+  --ok:#22c55e; --erro:#ef4444; --amarelo:#fbbf24;
+  --bg:#0a0f1e; --bg2:#0f1729; --card:#141d33; --card2:#1a2540;
+  --linha:#243049; --txt:#e8edf6; --mut:#8ba0bf;
+  --grad:linear-gradient(135deg,#2563eb,#7c3aed);
+}
 *{box-sizing:border-box}
-body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt)}
-a{color:#60a5fa;text-decoration:none}
-header{display:flex;align-items:center;gap:18px;padding:14px 22px;background:#111827;border-bottom:1px solid var(--linha)}
-header .logo{font-weight:800;font-size:1.15rem}
-header nav{display:flex;gap:16px;font-size:.9rem}
-header .saldo{margin-left:auto;font-size:.9rem;color:var(--mut)}
-header .saldo b{color:#fbbf24}
-main{max-width:920px;margin:0 auto;padding:26px 20px}
-h1{font-size:1.6rem;margin:0 0 6px}
-h2{font-size:1.1rem;margin:28px 0 10px;color:#cbd5e1}
-.sub{color:var(--mut);margin:0 0 18px}
-.cards{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0}
-.card{flex:1;min-width:150px;background:var(--card);border:1px solid var(--linha);border-radius:12px;padding:16px}
-.card .l{color:var(--mut);font-size:.8rem;text-transform:uppercase;letter-spacing:.5px}
-.card .n{font-size:1.8rem;font-weight:800;color:#fff;margin-top:4px}
-.acoes{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 4px}
-.btn{display:inline-block;padding:12px 18px;border-radius:10px;border:none;font-size:.95rem;font-weight:700;cursor:pointer;color:#fff}
-.btn.azul{background:var(--azul)}.btn.azul:hover{background:var(--azul2)}
-.btn.cinza{background:#475569}
-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--linha);border-radius:12px;overflow:hidden}
-th{background:#0b1220;text-align:left;padding:10px;font-size:.8rem;color:var(--mut)}
-td{padding:10px;border-top:1px solid var(--linha);font-size:.9rem}
-td.pos{color:#4ade80;font-weight:700}td.neg{color:#f87171;font-weight:700}
-td.vazio{color:var(--mut);text-align:center;padding:22px}
-.planos{display:flex;gap:16px;flex-wrap:wrap}
-.plano{flex:1;min-width:200px;background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:20px;text-align:center}
-.plano h3{margin:0 0 8px;color:#fbbf24}
-.plano .preco{font-size:2rem;font-weight:800;color:#fff}
-.plano .por{color:var(--mut);font-size:.82rem;margin:6px 0 16px}
-.plano form{margin:0}
-.plano .btn{width:100%}
-.auth{max-width:380px;margin:30px auto;background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:26px}
-.auth label{display:block;font-size:.82rem;color:var(--mut);margin:12px 0 4px}
-.auth input{width:100%;padding:11px;border:1px solid #475569;border-radius:8px;background:var(--bg);color:var(--txt);font-size:.95rem}
-.auth .btn{width:100%;margin-top:18px}
-.auth .link{text-align:center;margin-top:14px;font-size:.88rem;color:var(--mut)}
-.erro{background:#7f1d1d;color:#fecaca;padding:10px;border-radius:8px;font-size:.85rem;text-align:center}
+body{
+  margin:0; font-family:'Inter',system-ui,sans-serif; color:var(--txt);
+  background:
+    radial-gradient(900px 500px at 90% -10%, rgba(124,58,237,.18), transparent 60%),
+    radial-gradient(900px 500px at -10% 0%, rgba(37,99,235,.18), transparent 55%),
+    var(--bg);
+  min-height:100vh;
+}
+a{color:#7aa2ff; text-decoration:none; transition:.15s}
+a:hover{color:#a9c2ff}
+
+/* HEADER */
+header{
+  display:flex; align-items:center; gap:20px; padding:14px 24px;
+  background:rgba(10,15,30,.7); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--linha); position:sticky; top:0; z-index:10;
+}
+header .logo{
+  font-weight:800; font-size:1.25rem; letter-spacing:-.3px;
+  background:var(--grad); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+header nav{display:flex; gap:18px; font-size:.9rem; font-weight:500}
+header nav a{color:var(--mut)} header nav a:hover{color:#fff}
+header .saldo{
+  margin-left:auto; font-size:.82rem; color:var(--mut);
+  background:var(--card); border:1px solid var(--linha); padding:7px 14px; border-radius:999px;
+}
+header .saldo b{color:var(--amarelo)}
+
+main{max-width:960px; margin:0 auto; padding:32px 20px 60px}
+h1{font-size:1.9rem; font-weight:800; letter-spacing:-.5px; margin:0 0 6px}
+h2{font-size:1.15rem; font-weight:700; margin:30px 0 12px; color:#cdd9ee}
+.sub{color:var(--mut); margin:0 0 20px; font-size:.95rem}
+
+/* CARDS */
+.cards{display:flex; gap:16px; flex-wrap:wrap; margin:20px 0}
+.card{
+  flex:1; min-width:170px; background:linear-gradient(180deg,var(--card2),var(--card));
+  border:1px solid var(--linha); border-radius:16px; padding:18px 20px;
+  box-shadow:0 8px 24px rgba(0,0,0,.25); transition:transform .15s, border-color .15s;
+}
+.card:hover{transform:translateY(-2px); border-color:#3b4a6b}
+.card .l{color:var(--mut); font-size:.72rem; text-transform:uppercase; letter-spacing:.8px; font-weight:600}
+.card .n{font-size:2rem; font-weight:800; color:#fff; margin-top:6px; letter-spacing:-.5px}
+
+/* BOTOES */
+.acoes{display:flex; gap:12px; flex-wrap:wrap; margin:6px 0}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; padding:12px 20px; border-radius:12px; border:none;
+  font-size:.95rem; font-weight:700; cursor:pointer; color:#fff; transition:.15s; font-family:inherit;
+}
+.btn.azul{background:var(--grad); box-shadow:0 8px 20px rgba(37,99,235,.35)}
+.btn.azul:hover{filter:brightness(1.08); transform:translateY(-1px)}
+.btn.cinza{background:#2a3650} .btn.cinza:hover{background:#33405e}
+.btn.mini{padding:7px 12px; font-size:.8rem; border-radius:9px}
+.btn:disabled{opacity:.5; cursor:default; box-shadow:none; transform:none}
+
+/* TABELAS */
+table{width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--linha); border-radius:16px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.2)}
+th{background:#0c1426; text-align:left; padding:13px 14px; font-size:.74rem; color:var(--mut); text-transform:uppercase; letter-spacing:.6px; font-weight:600}
+td{padding:13px 14px; border-top:1px solid var(--linha); font-size:.9rem}
+tr:hover td{background:rgba(255,255,255,.02)}
+td.pos{color:#4ade80; font-weight:700} td.neg{color:#f87171; font-weight:700}
+td.vazio{color:var(--mut); text-align:center; padding:26px}
+
+/* PLANOS */
+.planos{display:flex; gap:18px; flex-wrap:wrap}
+.plano{
+  flex:1; min-width:210px; background:linear-gradient(180deg,var(--card2),var(--card));
+  border:1px solid var(--linha); border-radius:18px; padding:26px 22px; text-align:center;
+  box-shadow:0 10px 30px rgba(0,0,0,.25); transition:.18s; position:relative;
+}
+.plano:hover{transform:translateY(-4px); border-color:var(--azul)}
+.plano h3{margin:0 0 10px; color:var(--amarelo); font-size:1.1rem}
+.plano .preco{font-size:2.1rem; font-weight:800; color:#fff; letter-spacing:-1px}
+.plano .por{color:var(--mut); font-size:.82rem; margin:8px 0 18px}
+.plano .btn{width:100%; justify-content:center}
+
+/* AUTH */
+.auth{
+  max-width:400px; margin:48px auto; background:linear-gradient(180deg,var(--card2),var(--card));
+  border:1px solid var(--linha); border-radius:20px; padding:32px;
+  box-shadow:0 20px 50px rgba(0,0,0,.4);
+}
+.auth h1{font-size:1.5rem; text-align:center}
+.auth label{display:block; font-size:.8rem; color:var(--mut); margin:14px 0 5px; font-weight:500}
+input, textarea, select{
+  width:100%; padding:12px 13px; border:1px solid var(--linha); border-radius:11px;
+  background:var(--bg2); color:var(--txt); font-size:.95rem; font-family:inherit; transition:.15s;
+}
+input:focus, textarea:focus, select:focus{outline:none; border-color:var(--azul); box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.auth .btn{width:100%; justify-content:center; margin-top:20px}
+.auth .link{text-align:center; margin-top:16px; font-size:.88rem; color:var(--mut)}
+.erro{background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.4); color:#fca5a5; padding:11px; border-radius:10px; font-size:.85rem; text-align:center}
+
+/* conexao (tela de disparo do telao reaproveita) */
+#conexao{font-size:.72rem; padding:8px 12px; border-radius:10px; margin-bottom:14px; display:none}
+#conexao.off{display:block; background:rgba(239,68,68,.15); color:#fca5a5; border:1px solid rgba(239,68,68,.4)}
+
+.hint{font-size:.74rem; color:var(--mut); margin:5px 0 0}
