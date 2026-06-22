@@ -9,7 +9,7 @@ function personaliza(msg, nome) {
   return String(msg || '').replace(/\{nome\}/gi, primeiro);
 }
 
-async function enviarSMS(numero, conteudo) {
+async function enviarSMS(numero, conteudo, custom = '') {
   const apiKey = process.env.COMTELE_API_KEY || '';
   const route = process.env.COMTELE_ROTA || '16'; // 16 = Marketing
   if (!apiKey) return { ok: false, msg: 'COMTELE_API_KEY nao configurada' };
@@ -20,7 +20,7 @@ async function enviarSMS(numero, conteudo) {
       headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         receivers: [foneComtele(numero)], contactGroups: [], message: conteudo,
-        route: String(route), tag: 'disparaja', custom: ''
+        route: String(route), tag: 'disparaja', custom: String(custom || '')
       })
     });
   } catch (e) { return { ok: false, msg: 'conexao: ' + e.message }; }
@@ -29,6 +29,20 @@ async function enviarSMS(numero, conteudo) {
   const ok = resp.ok && data.hasError === false;
   const msg = ok ? 'ok' : (data.message || (Array.isArray(data.errors) && data.errors.join('; ')) || ('HTTP ' + resp.status));
   return { ok, msg };
+}
+
+// Relatorio de mensagens enviadas (com status de entrega) da conta Comtele.
+async function relatorioEnviadas(startDate, limit = 200) {
+  const apiKey = process.env.COMTELE_API_KEY || '';
+  if (!apiKey) return { ok: false, itens: [] };
+  try {
+    const url = 'https://api.comtele.com.br/reports/messages/sent?startDate=' +
+      encodeURIComponent(startDate) + '&limit=' + encodeURIComponent(limit);
+    const r = await fetch(url, { headers: { 'x-api-key': apiKey } });
+    const d = await r.json();
+    if (d && Array.isArray(d.object)) return { ok: true, itens: d.object };
+  } catch (e) { /* rede instavel */ }
+  return { ok: false, itens: [] };
 }
 
 // Consulta o saldo (R$) da conta Comtele do dono — pra mostrar o "estoque" de SMS no admin.
@@ -43,4 +57,4 @@ async function consultarSaldo() {
   return { ok: false };
 }
 
-module.exports = { enviarSMS, personaliza, foneComtele, soDigitos, consultarSaldo };
+module.exports = { enviarSMS, personaliza, foneComtele, soDigitos, consultarSaldo, relatorioEnviadas };

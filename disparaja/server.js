@@ -63,7 +63,7 @@ function requireAdmin(req, res, next) {
 // --- layout base (HTML compartilhado) ---
 function layout(title, body, user) {
   const nav = user
-    ? `<a href="/">Painel</a><a href="/planos">Comprar créditos</a>${ehAdmin(user) ? '<a href="/admin">👑 Admin</a>' : ''}<a href="/sair">Sair</a>`
+    ? `<a href="/">Painel</a><a href="/disparar">Disparar</a><a href="/relatorio">📊 Relatórios</a><a href="/planos">Comprar créditos</a>${ehAdmin(user) ? '<a href="/admin">👑 Admin</a>' : ''}<a href="/sair">Sair</a>`
     : `<a href="/login">Entrar</a><a href="/cadastro">Criar conta</a>`;
   return `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -349,7 +349,7 @@ app.post('/api/disparar', requireLogin, (req, res) => {
       const c = contatos[i];
       const u = dao.buscarPorId(job.userId);
       if (!u || u.saldo < preco) { job.parou = 'saldo acabou'; break; }
-      const r = await comtele.enviarSMS(c.telefone, comtele.personaliza(mensagem, c.nome));
+      const r = await comtele.enviarSMS(c.telefone, comtele.personaliza(mensagem, c.nome), 'u' + job.userId);
       if (r.ok) {
         dao.debitar(job.userId, preco, 'SMS para ' + c.telefone);
         job.enviados++;
@@ -376,10 +376,42 @@ app.post('/api/teste', requireLogin, async (req, res) => {
   const preco = req.user.preco_sms;
   if (req.user.saldo < preco) return res.json({ ok: false, erro: 'Sem saldo. Compre créditos pra testar.' });
   const msg = 'DisparaJa: seu sistema de SMS esta funcionando! Responda SAIR para nao receber.';
-  const r = await comtele.enviarSMS(numero, msg);
+  const r = await comtele.enviarSMS(numero, msg, 'u' + req.user.id);
   if (!r.ok) return res.json({ ok: false, erro: 'Não consegui enviar agora (' + r.msg + ').' });
   dao.debitar(req.user.id, preco, 'SMS de teste para ' + numero);
   res.json({ ok: true, saldo: reais(dao.buscarPorId(req.user.id).saldo) });
+});
+
+// --- RELATÓRIO DE ENTREGA (status real puxado da Comtele) ---
+app.get('/relatorio', requireLogin, async (req, res) => {
+  const startDate = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const verTodos = ehAdmin(req.user) && req.query.todos === '1';
+  const rep = await comtele.relatorioEnviadas(startDate, 300);
+  let itens = rep.itens;
+  if (!verTodos) itens = itens.filter(m => String(m.custom || '') === 'u' + req.user.id);
+
+  const badge = m => {
+    const s = (m.statusDetails || m.status || '').toLowerCase();
+    if (/entreg|delivered/.test(s)) return ['#16a34a', m.statusDetails || 'Entregue'];
+    if (/n[aã]o|erro|falh|undeliv|reject|invalid|expir/.test(s)) return ['#ef4444', m.statusDetails || 'Não entregue'];
+    return ['#f59e0b', m.statusDetails || m.status || 'Em análise'];
+  };
+  const fmtData = iso => { try { return new Date(iso).toLocaleString('pt-BR'); } catch (e) { return iso || ''; } };
+  const linhas = itens.length
+    ? itens.map(m => { const [cor, txt] = badge(m); return `<tr>
+        <td>${fmtData(m.sentAt || m.createdAt)}</td>
+        <td>${m.receiver || ''}</td>
+        <td>${(m.content || '').slice(0, 40)}</td>
+        <td><span style="background:${cor};color:#fff;padding:3px 10px;border-radius:999px;font-size:.74rem;font-weight:700">${txt}</span></td>
+      </tr>`; }).join('')
+    : `<tr><td colspan="4" class="vazio">${rep.ok ? 'Nenhum envio no período.' : 'Não consegui consultar a Comtele agora.'}</td></tr>`;
+
+  res.send(layout('Relatórios', `
+    <h1>📊 Relatórios de entrega</h1>
+    <p class="sub">Status real de cada SMS (puxado da Comtele) — últimos 30 dias.${ehAdmin(req.user) ? (verTodos ? ' • <a href="/relatorio">ver só os meus</a>' : ' • <a href="/relatorio?todos=1">ver de todos os clientes</a>') : ''}</p>
+    <table><thead><tr><th>Quando</th><th>Número</th><th>Mensagem</th><th>Status</th></tr></thead>
+    <tbody>${linhas}</tbody></table>
+  `, req.user));
 });
 
 // --- ADMIN (você): clientes, saldo, preço ---
