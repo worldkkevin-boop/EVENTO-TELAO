@@ -78,9 +78,47 @@ ${user ? `<div class="saldo">Saldo: <b id="hdrSaldo">${reais(user.saldo)}</b></d
 </body></html>`;
 }
 
-// --- LANDING / PAINEL ---
+// --- LANDING (quem nao esta logado) ---
 app.get('/', (req, res) => {
-  if (!req.session.userId) return res.redirect('/login');
+  if (!req.session.userId) {
+    const planosPreview = PLANOS.map(p => `
+      <div class="plano${p.destaque ? ' destaque' : ''}">
+        ${p.destaque ? `<div class="ribbon">🔥 ${p.destaque}</div>` : ''}
+        <h3>${p.nome}</h3>
+        <div class="preco">${reais(p.valor)}</div>
+        <div class="por">${reais(p.preco_sms)} por SMS</div>
+        <a class="btn azul" href="/cadastro">Começar</a>
+      </div>`).join('');
+    return res.send(layout('DisparaJá — SMS em massa', `
+      <section class="hero">
+        <h1>Fale com <span>toda a sua lista</span><br>em segundos 🚀</h1>
+        <p class="lead">Dispare <b>SMS em massa</b> pros seus clientes, eleitores ou convidados — chega em qualquer celular, sem app, e é lido na hora.</p>
+        <div class="hero-cta">
+          <a class="btn azul grande" href="/cadastro">Criar conta grátis</a>
+          <a class="btn cinza grande" href="/login">Entrar</a>
+        </div>
+        <p class="hint">🎁 Ganhe créditos de teste ao criar a conta — mande um SMS pro seu número agora, de graça.</p>
+      </section>
+
+      <section class="feats">
+        <div class="feat"><div class="fic">📲</div><b>Chega em todo celular</b><span>Sem precisar de app nem internet.</span></div>
+        <div class="feat"><div class="fic">⚡</div><b>Lido na hora</b><span>SMS tem ~98% de taxa de abertura.</span></div>
+        <div class="feat"><div class="fic">🙋</div><b>Personalizado</b><span>Vai com o nome de cada pessoa.</span></div>
+        <div class="feat"><div class="fic">📊</div><b>Relatório de entrega</b><span>Veja quem recebeu de verdade.</span></div>
+        <div class="feat"><div class="fic">💰</div><b>Sem mensalidade</b><span>Pague só pelo que enviar.</span></div>
+        <div class="feat"><div class="fic">📇</div><b>Grupos salvos</b><span>Suas listas prontas pra reusar.</span></div>
+      </section>
+
+      <h2 style="text-align:center;margin-top:36px">Planos a partir de R$ 0,17/SMS</h2>
+      <p class="sub" style="text-align:center">Pague por Pix, sem mensalidade. Quanto maior o pacote, menor o preço.</p>
+      <div class="planos">${planosPreview}</div>
+
+      <section class="cta-final">
+        <h2>Pronto pra falar com todo mundo? 🔥</h2>
+        <a class="btn azul grande" href="/cadastro">Criar conta grátis →</a>
+      </section>
+    `, null));
+  }
   const user = dao.buscarPorId(req.session.userId);
   if (!user) { req.session.destroy(() => {}); return res.redirect('/login'); }
   const trans = dao.listarTransacoes(user.id, 20);

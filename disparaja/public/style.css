@@ -124,3 +124,19 @@ input:focus, textarea:focus, select:focus{outline:none; border-color:var(--azul)
 #conexao.off{display:block; background:rgba(239,68,68,.15); color:#fca5a5; border:1px solid rgba(239,68,68,.4)}
 
 .hint{font-size:.74rem; color:var(--mut); margin:5px 0 0}
+
+/* LANDING */
+.hero{text-align:center; padding:48px 16px 30px}
+.hero h1{font-size:2.6rem; line-height:1.1; letter-spacing:-1px}
+.hero h1 span{background:var(--grad); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent}
+.hero .lead{font-size:1.15rem; color:#cdd9ee; max-width:620px; margin:14px auto 24px}
+.hero-cta{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-bottom:14px}
+.btn.grande{padding:15px 28px; font-size:1.05rem; border-radius:14px}
+.feats{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin:30px 0}
+.feat{background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--linha); border-radius:14px; padding:20px; text-align:center}
+.feat .fic{font-size:2rem; margin-bottom:8px}
+.feat b{display:block; margin-bottom:4px; font-size:1.02rem}
+.feat span{color:var(--mut); font-size:.86rem}
+.cta-final{text-align:center; margin:44px 0 10px; padding:36px 16px; background:linear-gradient(135deg,rgba(37,99,235,.16),rgba(124,58,237,.16)); border:1px solid var(--linha); border-radius:20px}
+.cta-final h2{margin:0 0 18px}
+@media(max-width:560px){.hero h1{font-size:2rem}}
