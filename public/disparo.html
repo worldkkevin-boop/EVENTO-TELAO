@@ -50,11 +50,14 @@ button:disabled{opacity:.5;cursor:default}
 
   <div class="box">
     <h3>1. Conta Comtele</h3>
-    <label>Chave de API (auth-key)</label>
+    <label>Chave de API (x-api-key)</label>
     <input id="apiKey" type="password" placeholder="cole sua chave da Comtele aqui" autocomplete="off">
-    <p class="hint">Pega no painel da Comtele (sms.comtele.com.br) em "Informações do Desenvolvedor". Fica salva só neste navegador.</p>
-    <label>Remetente (opcional, máx. 11 letras)</label>
-    <input id="sender" maxlength="11" placeholder="ex: UniaoBrasil">
+    <p class="hint">Pega no portal da Comtele em "Configurações → Chaves de API". Fica salva só neste navegador.</p>
+    <label>Canal de envio</label>
+    <select id="route">
+      <option value="16">Marketing — R$ 0,10 por SMS</option>
+      <option value="17">Premium — R$ 0,12 por SMS</option>
+    </select>
   </div>
 
   <div class="box">
@@ -112,13 +115,13 @@ const conexaoEl = document.getElementById('conexao');
 socket.on('connect', () => { conexaoEl.className = ''; conexaoEl.innerText = ''; });
 socket.on('disconnect', () => { conexaoEl.className = 'off'; conexaoEl.innerText = 'Sem conexao com o servidor. Abra o iniciar-evento.bat e recarregue (Ctrl+F5).'; });
 
-// guarda chave/remetente neste navegador
-const apiKeyEl = document.getElementById('apiKey'), senderEl = document.getElementById('sender');
+// guarda chave/canal neste navegador
+const apiKeyEl = document.getElementById('apiKey'), routeEl = document.getElementById('route');
 apiKeyEl.value = localStorage.getItem('comtele_key') || '';
-senderEl.value = localStorage.getItem('comtele_sender') || '';
+routeEl.value = localStorage.getItem('comtele_route') || '16';
 // salva na hora (a cada tecla/colagem) pra nao sumir ao dar F5
 apiKeyEl.oninput = () => localStorage.setItem('comtele_key', apiKeyEl.value.trim());
-senderEl.oninput = () => localStorage.setItem('comtele_sender', senderEl.value.trim());
+routeEl.onchange = () => localStorage.setItem('comtele_route', routeEl.value);
 
 function inserirNome(){
   const t = document.getElementById('msg');
@@ -202,12 +205,12 @@ function testar(){
   if (numero.replace(/\D/g,'').length < 10){ alert('Digite um número de teste com DDD.'); return; }
   document.getElementById('resTeste').innerText = 'Enviando teste...';
   socket.emit('sms-test', {
-    apiKey: apiKeyEl.value.trim(), sender: senderEl.value.trim(),
+    apiKey: apiKeyEl.value.trim(), route: routeEl.value,
     numero, nome: 'Teste', msg: document.getElementById('msg').value
   }, (r) => {
     document.getElementById('resTeste').innerHTML = r && r.ok
       ? '✅ Teste enviado! Confira seu celular.'
-      : '❌ Falhou: ' + ((r && r.data && (r.data.Message || JSON.stringify(r.data))) || 'erro desconhecido');
+      : '❌ Falhou: ' + ((r && r.data && (r.data.message || r.data.Message || JSON.stringify(r.data))) || 'erro desconhecido');
   });
 }
 
@@ -221,7 +224,7 @@ function disparar(){
   document.getElementById('btnCancelar').disabled = false;
   document.getElementById('log').innerHTML = '';
   socket.emit('sms-disparar', {
-    apiKey: apiKeyEl.value.trim(), sender: senderEl.value.trim(),
+    apiKey: apiKeyEl.value.trim(), route: routeEl.value,
     contatos, msg: document.getElementById('msg').value,
     delayMs: Math.round(parseFloat(document.getElementById('delay').value || 1) * 1000)
   });
