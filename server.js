@@ -109,7 +109,8 @@ let disparoCancel = false; // botao "parar" do disparo de SMS
 
 // --- SMS via Comtele (https://docs.comtele.com.br) ---
 function soDigitos(t) { return String(t == null ? '' : t).replace(/\D/g, ''); }
-function comCodigoPais(t) { let d = soDigitos(t); if (d && !d.startsWith('55')) d = '55' + d; return d; }
+// Comtele quer o numero no formato DDD+Numero (ex: 96991767788), SEM o 55 do pais
+function foneBR(t) { let d = soDigitos(t); if (d.length >= 12 && d.startsWith('55')) d = d.slice(2); return d; }
 // Troca {nome} pelo primeiro nome (msg mais pessoal e curta pro SMS)
 function personaliza(msg, nome) {
     const primeiro = String(nome || '').trim().split(/\s+/)[0] || '';
@@ -117,14 +118,21 @@ function personaliza(msg, nome) {
 }
 async function comteleSend(apiKey, sender, receivers, content) {
     if (!apiKey) return { ok: false, data: { Message: 'Sem chave de API' } };
-    const resp = await fetch('https://sms.comtele.com.br/api/v2/send', {
-        method: 'POST',
-        headers: { 'auth-key': apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ Sender: sender || '', Receivers: receivers, Content: content })
-    });
+    let resp;
+    try {
+        resp = await fetch('https://sms.comtele.com.br/api/v2/send', {
+            method: 'POST',
+            headers: { 'auth-key': apiKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ Sender: sender || '', Receivers: receivers, Content: content })
+        });
+    } catch (e) { return { ok: false, data: { Message: 'Erro de conexao: ' + e.message } }; }
+    const raw = await resp.text();
     let data = {};
-    try { data = await resp.json(); } catch (e) { /* resposta sem JSON */ }
-    return { ok: resp.ok && data.Success !== false, data };
+    try { data = raw ? JSON.parse(raw) : {}; } catch (e) { data = {}; }
+    const ok = resp.ok && data.Success !== false;
+    // Comtele as vezes responde em TEXTO puro (ex: 401). Mostra o motivo real.
+    if (!ok && !data.Message) data.Message = 'HTTP ' + resp.status + (raw ? (': ' + raw.slice(0, 200)) : ' (resposta vazia)');
+    return { ok, data };
 }
 
 io.on('connection', (socket) => {
@@ -286,7 +294,7 @@ io.on('connection', (socket) => {
     // Envia 1 SMS personalizado. A chave de API vem do painel (nao fica salva no servidor).
     socket.on('sms-test', async (dados, cb) => {
         try {
-            const r = await comteleSend(dados.apiKey, dados.sender, comCodigoPais(dados.numero), personaliza(dados.msg, dados.nome || 'Teste'));
+            const r = await comteleSend(dados.apiKey, dados.sender, foneBR(dados.numero), personaliza(dados.msg, dados.nome || 'Teste'));
             if (cb) cb(r);
         } catch (e) { if (cb) cb({ ok: false, data: { Message: e.message } }); }
     });
@@ -310,7 +318,7 @@ io.on('connection', (socket) => {
             }
             const c = contatos[i];
             let res;
-            try { res = await comteleSend(dados.apiKey, dados.sender, comCodigoPais(c.telefone), personaliza(dados.msg, c.nome)); }
+            try { res = await comteleSend(dados.apiKey, dados.sender, foneBR(c.telefone), personaliza(dados.msg, c.nome)); }
             catch (e) { res = { ok: false, data: { Message: e.message } }; }
             if (res.ok) ok++;
             else { fail++; falhas.push({ nome: c.nome, telefone: c.telefone, erro: (res.data && res.data.Message) || 'falha' }); }
