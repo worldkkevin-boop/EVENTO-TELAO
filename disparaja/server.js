@@ -9,6 +9,7 @@ const comtele = require('./comtele');
 
 // Jobs de disparo em andamento (em memoria): jobId -> progresso
 const disparoJobs = new Map();
+const jobAtualPorUser = new Map(); // userId -> jobId (pra retomar o progresso ao voltar pra pagina)
 
 // Carrega segredos do .env (se existir): MP_ACCESS_TOKEN, SESSION_SECRET, etc.
 try { process.loadEnvFile(path.join(__dirname, '.env')); } catch (e) { /* sem .env: usa defaults */ }
@@ -63,8 +64,8 @@ function requireAdmin(req, res, next) {
 // --- layout base (HTML compartilhado) ---
 function layout(title, body, user) {
   const nav = user
-    ? `<a href="/">Painel</a><a href="/contatos">📇 Contatos</a><a href="/disparar">Disparar</a><a href="/relatorio">📊 Relatórios</a><a href="/respostas">💬 Respostas</a><a href="/planos">Comprar</a>${ehAdmin(user) ? '<a href="/admin">👑 Admin</a>' : ''}<a href="/sair">Sair</a>`
-    : `<a href="/login">Entrar</a><a href="/cadastro">Criar conta</a>`;
+    ? `<a href="/">🏠 Painel</a><a href="/contatos">📇 Contatos</a><a href="/disparar">🚀 Disparar</a><a href="/relatorio">📊 Relatórios</a><a href="/respostas">💬 Respostas</a><a href="/planos">💳 Comprar</a>${ehAdmin(user) ? '<a href="/admin">👑 Admin</a>' : ''}<a href="/sair">🚪 Sair</a>`
+    : `<a href="/login">🔑 Entrar</a><a href="/cadastro">✨ Criar conta</a>`;
   return `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${title} — DisparaJá</title>
@@ -73,6 +74,7 @@ function layout(title, body, user) {
 <header><div class="logo">📨 DisparaJá</div><nav>${nav}</nav>
 ${user ? `<div class="saldo">Saldo: <b>${reais(user.saldo)}</b></div>` : ''}</header>
 <main>${body}</main>
+<script>(function(){var p=location.pathname;document.querySelectorAll('header nav a').forEach(function(a){var h=a.getAttribute('href');if(h===p||(h!=='/'&&h!=='/sair'&&p.indexOf(h)===0))a.classList.add('ativo');});})();</script>
 </body></html>`;
 }
 
@@ -102,7 +104,7 @@ app.get('/', (req, res) => {
       <h2 style="margin-top:0">🎁 Teste grátis</h2>
       <p class="hint" style="margin-bottom:12px">Manda um SMS de teste pro <b>seu próprio número</b> agora e veja chegar no celular. Usa só ${reais(user.preco_sms)} do seu saldo.</p>
       <div style="display:flex; gap:10px; flex-wrap:wrap">
-        <input id="numTeste" placeholder="Seu número com DDD (ex: 96991767788)" style="flex:1; min-width:220px">
+        <input id="numTeste" placeholder="Seu número com DDD (ex: 11999998888)" style="flex:1; min-width:220px">
         <button class="btn azul" onclick="enviarTeste()">📲 Enviar SMS de teste</button>
       </div>
       <p id="resTeste" class="hint"></p>
@@ -119,8 +121,7 @@ app.get('/', (req, res) => {
         try{
           const r = await fetch('/api/teste',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({numero})});
           const j = await r.json();
-          res.innerHTML = j.ok ? '✅ Enviado! Olha teu celular. Novo saldo: <b>'+j.saldo+'</b>' : '❌ '+j.erro;
-          if(j.ok) setTimeout(()=>location.reload(), 2000);
+          res.innerHTML = j.ok ? '✅ Enviado! Olha teu celular. Novo saldo: <b>'+j.saldo+'</b> • <a href="/relatorio">ver status de entrega →</a>' : '❌ '+j.erro;
         }catch(e){ res.innerText = '❌ Erro: '+e.message; }
       }
     </script>
@@ -250,7 +251,7 @@ app.get('/disparar', requireLogin, (req, res) => {
       <p class="hint">ou suba um arquivo / cole os números abaixo:</p>
       <input type="file" id="arquivo" accept=".csv">
       <p class="hint">CSV com coluna <b>Numero</b> (e <b>Nome</b> se quiser personalizar). Ou cole abaixo:</p>
-      <textarea id="colar" rows="3" placeholder="Cole números separados por vírgula ou um por linha (ex: 96991767788, 96988887777)"></textarea>
+      <textarea id="colar" rows="3" placeholder="Cole números separados por vírgula ou um por linha (ex: 11999998888, 11988887777)"></textarea>
       <p id="resumoLista" class="hint"></p>
 
       <label style="margin-top:14px">2. Mensagem (use {nome} pra personalizar)</label>
@@ -260,9 +261,15 @@ app.get('/disparar', requireLogin, (req, res) => {
 
       <button class="btn azul" id="btnEnviar" onclick="disparar()" style="margin-top:8px">🚀 Disparar agora</button>
       <p class="hint">⏳ O envio sai aos poucos pra garantir a entrega — listas grandes podem levar alguns minutos. Pode deixar a página aberta.</p>
-      <div id="prog" style="display:none;margin-top:14px">
-        <div class="barra"><div id="barraFill"></div></div>
-        <p class="hint"><span id="pInfo">0 / 0</span> • <span id="pOk">0</span> enviados • <span id="pFail">0</span> falhas</p>
+      <div id="prog" class="card" style="display:none;margin-top:14px;padding:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <b id="progTitulo">📨 Enviando...</b>
+          <button type="button" class="btn cinza mini" style="margin-left:auto" onclick="document.getElementById('progCorpo').classList.toggle('escondido')">minimizar / abrir</button>
+        </div>
+        <div id="progCorpo">
+          <div class="barra"><div id="barraFill"></div></div>
+          <p class="hint"><span id="pInfo">0 / 0</span> • <span id="pOk">0</span> enviados • <span id="pFail">0</span> falhas</p>
+        </div>
       </div>
       <p id="resultado" class="hint"></p>
     </div>
@@ -271,12 +278,13 @@ app.get('/disparar', requireLogin, (req, res) => {
       textarea{width:100%;padding:10px;border:1px solid #475569;border-radius:8px;background:var(--bg);color:var(--txt);font-family:inherit;font-size:.95rem;resize:vertical}
       .barra{height:14px;background:#0b1220;border-radius:8px;overflow:hidden;border:1px solid var(--linha)}
       .barra>div{height:100%;width:0;background:var(--ok);transition:width .3s}
+      .escondido{display:none}
     </style>
     <script>
       const PRECO = ${req.user.preco_sms};
       let contatos = [];
       function fmt(c){return 'R$ '+(c/100).toFixed(2).replace('.',',');}
-      function parseCSV(t){t=t.replace(/^/,'');return t.split(/\\r?\\n/).map(l=>l.split(',').map(x=>x.replace(/^"|"$/g,'').trim())).filter(r=>r.some(x=>x!==''));}
+      function parseCSV(t){t=t.replace(/^\\uFEFF/,'');return t.split(/\\r?\\n/).map(l=>l.split(',').map(x=>x.replace(/^"|"$/g,'').trim())).filter(r=>r.some(x=>x!==''));}
       function montar(){
         document.getElementById('resumoLista').innerHTML = contatos.length
           ? '✅ <b>'+contatos.length+'</b> contatos carregados' : '';
@@ -312,29 +320,38 @@ app.get('/disparar', requireLogin, (req, res) => {
         document.getElementById('cCusto').innerText = fmt(contatos.length*PRECO);
       }
       let timer;
+      function acompanhar(jobId){
+        document.getElementById('prog').style.display = 'block';
+        document.getElementById('btnEnviar').disabled = true;
+        if(timer) clearInterval(timer);
+        timer = setInterval(async ()=>{
+          let s; try{ s = await (await fetch('/api/disparo-status?id='+jobId)).json(); }catch(e){ return; }
+          const feitos = s.enviados + s.fail;
+          document.getElementById('barraFill').style.width = (s.total?Math.round(feitos/s.total*100):0)+'%';
+          document.getElementById('pInfo').innerText = feitos+' / '+s.total;
+          document.getElementById('pOk').innerText = s.enviados;
+          document.getElementById('pFail').innerText = s.fail;
+          if(s.terminado){
+            clearInterval(timer);
+            document.getElementById('btnEnviar').disabled = false;
+            document.getElementById('progTitulo').innerText = '✅ Disparo concluído';
+            document.getElementById('resultado').innerHTML = '✅ Concluído! '+s.enviados+' enviados, '+s.fail+' falhas.'+(s.parou?' (parou: '+s.parou+')':'')+' • <a href="/relatorio">ver status de entrega →</a>';
+          } else {
+            document.getElementById('progTitulo').innerText = '📨 Enviando... ('+feitos+'/'+s.total+')';
+          }
+        },1500);
+      }
       async function disparar(){
         const msg = document.getElementById('msg').value.trim();
         if(!contatos.length) return alert('Carregue ou cole a lista de contatos.');
         if(!msg) return alert('Escreva a mensagem.');
         if(!confirm('Disparar para '+contatos.length+' contatos?\\nCusto: '+fmt(contatos.length*PRECO)+' do seu saldo.')) return;
         document.getElementById('btnEnviar').disabled = true;
-        document.getElementById('prog').style.display = 'block';
         document.getElementById('resultado').innerText = '';
         const r = await fetch('/api/disparar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contatos,mensagem:msg})});
         const j = await r.json();
         if(!j.ok){ document.getElementById('resultado').innerHTML='❌ '+j.erro; document.getElementById('btnEnviar').disabled=false; return; }
-        timer = setInterval(async ()=>{
-          const s = await (await fetch('/api/disparo-status?id='+j.jobId)).json();
-          document.getElementById('barraFill').style.width = (s.total?Math.round((s.enviados+s.fail)/s.total*100):0)+'%';
-          document.getElementById('pInfo').innerText = (s.enviados+s.fail)+' / '+s.total;
-          document.getElementById('pOk').innerText = s.enviados;
-          document.getElementById('pFail').innerText = s.fail;
-          if(s.terminado){
-            clearInterval(timer);
-            document.getElementById('btnEnviar').disabled=false;
-            document.getElementById('resultado').innerHTML = '✅ Concluído! '+s.enviados+' enviados, '+s.fail+' falhas.'+(s.parou?' (parou: '+s.parou+')':'');
-          }
-        },1500);
+        acompanhar(j.jobId);
       }
       async function carregarGrupo(){
         const id = document.getElementById('grupoSel').value;
@@ -344,6 +361,8 @@ app.get('/disparar', requireLogin, (req, res) => {
         montar();
       }
       if(document.getElementById('grupoSel').value) carregarGrupo();
+      // retoma a barra se ja tiver um disparo rolando (ao sair e voltar pra pagina)
+      fetch('/api/disparo-atual').then(r=>r.json()).then(j=>{ if(j.jobId) acompanhar(j.jobId); }).catch(()=>{});
       contar();
     </script>
   `, req.user));
@@ -361,6 +380,7 @@ app.post('/api/disparar', requireLogin, (req, res) => {
   const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const job = { userId: req.user.id, total: contatos.length, enviados: 0, fail: 0, terminado: false, parou: null };
   disparoJobs.set(jobId, job);
+  jobAtualPorUser.set(req.user.id, jobId);
   res.json({ ok: true, jobId });
 
   (async () => {
@@ -387,6 +407,14 @@ app.get('/api/disparo-status', requireLogin, (req, res) => {
   const job = disparoJobs.get(req.query.id);
   if (!job || job.userId !== req.user.id) return res.json({ terminado: true, total: 0, enviados: 0, fail: 0 });
   res.json({ total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou });
+});
+
+// Disparo atual do usuario (pra retomar a barra de progresso ao voltar pra pagina)
+app.get('/api/disparo-atual', requireLogin, (req, res) => {
+  const jobId = jobAtualPorUser.get(req.user.id);
+  const job = jobId && disparoJobs.get(jobId);
+  if (!job) return res.json({ jobId: null });
+  res.json({ jobId, total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou });
 });
 
 // Envia 1 SMS de teste pro proprio numero do cliente (desconta 1 SMS do saldo)
@@ -501,7 +529,7 @@ app.get('/contatos', requireLogin, (req, res) => {
     <h2>➕ Novo grupo</h2>
     <div class="card" style="display:block">
       <label>Nome do grupo</label>
-      <input id="gnome" placeholder="Ex: Convenção Alliny">
+      <input id="gnome" placeholder="Ex: Clientes VIP">
       <label style="margin-top:12px">Arquivo CSV (colunas Nome e Número)</label>
       <input type="file" id="garq" accept=".csv">
       <p id="gresumo" class="hint"></p>

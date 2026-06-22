@@ -29,8 +29,10 @@ header .logo{
   font-weight:800; font-size:1.25rem; letter-spacing:-.3px;
   background:var(--grad); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
 }
-header nav{display:flex; gap:18px; font-size:.9rem; font-weight:500}
-header nav a{color:var(--mut)} header nav a:hover{color:#fff}
+header nav{display:flex; gap:4px; font-size:.88rem; font-weight:500; flex-wrap:wrap}
+header nav a{color:var(--mut); padding:7px 11px; border-radius:9px; transition:.15s}
+header nav a:hover{color:#fff; background:rgba(255,255,255,.07)}
+header nav a.ativo{color:#fff; background:rgba(37,99,235,.25)}
 header .saldo{
   margin-left:auto; font-size:.82rem; color:var(--mut);
   background:var(--card); border:1px solid var(--linha); padding:7px 14px; border-radius:999px;
