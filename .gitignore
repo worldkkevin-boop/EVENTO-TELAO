@@ -7,6 +7,12 @@ boot.err
 # Logs de disparo (contem telefones de pessoas - nao sobe pro GitHub)
 disparos/
 
+# DisparaJa (SaaS): dependencias, banco de dados e segredos NAO sobem
+disparaja/node_modules/
+disparaja/data.db
+disparaja/data.db-*
+disparaja/.env
+
 # Videos pesados ficam locais (GitHub rejeita > 100MB). So o LEIA-ME vai pro repo.
 public/videos/*
 !public/videos/LEIA-ME.txt

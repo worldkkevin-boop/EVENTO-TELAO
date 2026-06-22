@@ -1,0 +1,39 @@
+:root{--azul:#2563eb;--azul2:#1d4ed8;--ok:#16a34a;--erro:#ef4444;--bg:#0f172a;--card:#1e293b;--linha:#334155;--txt:#e2e8f0;--mut:#94a3b8}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt)}
+a{color:#60a5fa;text-decoration:none}
+header{display:flex;align-items:center;gap:18px;padding:14px 22px;background:#111827;border-bottom:1px solid var(--linha)}
+header .logo{font-weight:800;font-size:1.15rem}
+header nav{display:flex;gap:16px;font-size:.9rem}
+header .saldo{margin-left:auto;font-size:.9rem;color:var(--mut)}
+header .saldo b{color:#fbbf24}
+main{max-width:920px;margin:0 auto;padding:26px 20px}
+h1{font-size:1.6rem;margin:0 0 6px}
+h2{font-size:1.1rem;margin:28px 0 10px;color:#cbd5e1}
+.sub{color:var(--mut);margin:0 0 18px}
+.cards{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0}
+.card{flex:1;min-width:150px;background:var(--card);border:1px solid var(--linha);border-radius:12px;padding:16px}
+.card .l{color:var(--mut);font-size:.8rem;text-transform:uppercase;letter-spacing:.5px}
+.card .n{font-size:1.8rem;font-weight:800;color:#fff;margin-top:4px}
+.acoes{display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 4px}
+.btn{display:inline-block;padding:12px 18px;border-radius:10px;border:none;font-size:.95rem;font-weight:700;cursor:pointer;color:#fff}
+.btn.azul{background:var(--azul)}.btn.azul:hover{background:var(--azul2)}
+.btn.cinza{background:#475569}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--linha);border-radius:12px;overflow:hidden}
+th{background:#0b1220;text-align:left;padding:10px;font-size:.8rem;color:var(--mut)}
+td{padding:10px;border-top:1px solid var(--linha);font-size:.9rem}
+td.pos{color:#4ade80;font-weight:700}td.neg{color:#f87171;font-weight:700}
+td.vazio{color:var(--mut);text-align:center;padding:22px}
+.planos{display:flex;gap:16px;flex-wrap:wrap}
+.plano{flex:1;min-width:200px;background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:20px;text-align:center}
+.plano h3{margin:0 0 8px;color:#fbbf24}
+.plano .preco{font-size:2rem;font-weight:800;color:#fff}
+.plano .por{color:var(--mut);font-size:.82rem;margin:6px 0 16px}
+.plano form{margin:0}
+.plano .btn{width:100%}
+.auth{max-width:380px;margin:30px auto;background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:26px}
+.auth label{display:block;font-size:.82rem;color:var(--mut);margin:12px 0 4px}
+.auth input{width:100%;padding:11px;border:1px solid #475569;border-radius:8px;background:var(--bg);color:var(--txt);font-size:.95rem}
+.auth .btn{width:100%;margin-top:18px}
+.auth .link{text-align:center;margin-top:14px;font-size:.88rem;color:var(--mut)}
+.erro{background:#7f1d1d;color:#fecaca;padding:10px;border-radius:8px;font-size:.85rem;text-align:center}
