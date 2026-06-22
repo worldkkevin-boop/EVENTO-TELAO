@@ -378,9 +378,13 @@ app.get('/disparar', requireLogin, (req, res) => {
           if(s.terminado){
             clearInterval(timer);
             document.getElementById('btnEnviar').disabled = false;
-            if(s.restam > 0){
+            if(s.parou === 'comtele'){
+              // problema do DONO (Comtele sem credito) — cliente NAO ve erro
+              document.getElementById('progTitulo').innerText = '✅ Disparo recebido';
+              document.getElementById('resultado').innerHTML = '✅ '+s.enviados+' enviados! O restante está sendo processado e chega em breve.';
+            } else if(s.restam > 0){
               document.getElementById('progTitulo').innerHTML = '⚠️ Pausado';
-              document.getElementById('resultado').innerHTML = '⚠️ <b>Saldo acabou.</b> Enviei '+s.enviados+', faltam '+s.restam+'. Adicione créditos e clique 👉 <button type="button" class="btn azul mini" onclick="retomar()">▶️ Retomar (faltam '+s.restam+')</button>';
+              document.getElementById('resultado').innerHTML = '⚠️ <b>Seu saldo acabou.</b> Enviei '+s.enviados+', faltam '+s.restam+'. Adicione créditos e clique 👉 <button type="button" class="btn azul mini" onclick="retomar()">▶️ Retomar (faltam '+s.restam+')</button>';
             } else {
               document.getElementById('progTitulo').innerText = '✅ Disparo concluído';
               document.getElementById('resultado').innerHTML = '✅ Concluído! '+s.enviados+' enviados, '+s.fail+' falhas. • <a href="/relatorio">ver status de entrega →</a>';
@@ -440,8 +444,14 @@ function iniciarDisparo(userId, contatos, mensagem) {
         dao.debitar(userId, preco, 'SMS para ' + c.telefone);
         dao.registrarEnvio(userId, c.nome, comtele.foneComtele(c.telefone));
         job.enviados++;
+      } else if (r.semSaldo) {
+        // Comtele do DONO sem credito: PAUSA (problema do dono). Cliente nao ve erro; vai pro admin.
+        job.parou = 'comtele';
+        job.restantes = contatos.slice(i);
+        dao.criarPendente(userId, mensagem, job.enviados, contatos.slice(i));
+        break;
       } else {
-        job.fail++; // falhou na Comtele: NAO desconta saldo
+        job.fail++; // falha real do numero (numero ruim etc.)
       }
       if (i < contatos.length - 1) await new Promise(res => setTimeout(res, 500)); // throttle
     }
@@ -699,6 +709,21 @@ app.get('/admin', requireAdmin, async (req, res) => {
   const users = dao.listarUsuarios();
   const comteleSaldo = await comtele.consultarSaldo();
   const estoqueSms = comteleSaldo.ok ? Math.floor(comteleSaldo.saldo / 0.10) : null;
+  const pendentes = dao.listarPendentes();
+  const pendHtml = pendentes.length ? `
+    <h2>⏳ Disparos pausados (sua Comtele ficou sem crédito)</h2>
+    <p class="sub" style="color:#fbbf24">Recarregue sua Comtele e clique Retomar — o cliente não vê erro nenhum, é resolvido aqui.</p>
+    <table><thead><tr><th>Cliente</th><th>Faltam</th><th>Já enviou</th><th>Quando parou</th><th>Ação</th></tr></thead><tbody>
+    ${pendentes.map(p => `<tr>
+      <td>${p.cliente}<br><span class="hint">${p.email}</span></td>
+      <td><b>${p.qtd} SMS</b></td>
+      <td>${p.enviados}</td>
+      <td class="hint">${p.criado_em}</td>
+      <td>
+        <form method="POST" action="/admin/retomar-pendente" class="inline"><input type="hidden" name="id" value="${p.id}"><button class="btn azul mini">▶️ Retomar</button></form>
+        <form method="POST" action="/admin/descartar-pendente" class="inline" onsubmit="return confirm('Descartar? Os ${p.qtd} restantes NAO serao enviados.')"><input type="hidden" name="id" value="${p.id}"><button class="btn mini" style="background:#ef4444">🗑️</button></form>
+      </td></tr>`).join('')}
+    </tbody></table>` : '';
   const linhas = users.map(u => `<tr>
     <td>${u.id}</td>
     <td>${u.nome}<br><span class="hint">${u.email}</span>${ehAdmin(u) ? ' 👑' : ''}</td>
@@ -731,6 +756,8 @@ app.get('/admin', requireAdmin, async (req, res) => {
       <div class="card"><div class="l">Clientes</div><div class="n">${users.length}</div></div>
     </div>
     ${req.query.ok ? `<p class="hint" style="color:#4ade80">✅ ${req.query.ok}</p>` : ''}
+    ${pendHtml}
+    <h2>Clientes</h2>
     <table><thead><tr><th>#</th><th>Cliente</th><th>Saldo</th><th>Gasto</th><th>Preço/SMS</th><th>Ações</th></tr></thead>
     <tbody>${linhas}</tbody></table>
     <style>.inline{display:inline-block;margin:2px}.btn.mini{padding:6px 10px;font-size:.8rem}
@@ -758,6 +785,22 @@ app.post('/admin/apagar', requireAdmin, (req, res) => {
   // Nao deixa apagar admin nem a propria conta
   if (userId && alvo && !ehAdmin(alvo) && userId !== req.user.id) dao.apagarUsuario(userId);
   res.redirect('/admin?ok=' + encodeURIComponent('Cliente apagado.'));
+});
+
+// Retoma um disparo pausado por falta de credito na Comtele (manda o restante)
+app.post('/admin/retomar-pendente', requireAdmin, (req, res) => {
+  const p = dao.buscarPendente(Number(req.body.id));
+  if (p) {
+    let restantes = []; try { restantes = JSON.parse(p.restantes); } catch (e) { /* json ruim */ }
+    if (restantes.length) iniciarDisparo(p.user_id, restantes, p.mensagem);
+    dao.apagarPendente(p.id);
+    return res.redirect('/admin?ok=' + encodeURIComponent('Disparo retomado! Mandando os ' + restantes.length + ' restantes.'));
+  }
+  res.redirect('/admin');
+});
+app.post('/admin/descartar-pendente', requireAdmin, (req, res) => {
+  dao.apagarPendente(Number(req.body.id));
+  res.redirect('/admin?ok=' + encodeURIComponent('Pendência descartada.'));
 });
 
 // --- CADASTRO ---

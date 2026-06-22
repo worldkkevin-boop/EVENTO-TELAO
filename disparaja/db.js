@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS contatos (
 );
 CREATE INDEX IF NOT EXISTS idx_grupos_user ON grupos(user_id);
 CREATE INDEX IF NOT EXISTS idx_contatos_grupo ON contatos(grupo_id);
+CREATE TABLE IF NOT EXISTS pendentes (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL,
+  mensagem   TEXT NOT NULL,
+  restantes  TEXT NOT NULL,            -- JSON [{nome,telefone}]
+  qtd        INTEGER NOT NULL,
+  enviados   INTEGER NOT NULL DEFAULT 0,
+  criado_em  TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 // --- senha (scrypt nativo, sem dependencia) ---
@@ -184,6 +193,22 @@ function apagarGrupo(grupoId) {
   } catch (e) { try { db.exec('ROLLBACK'); } catch (_) {} }
 }
 
+// --- disparos pendentes (pausados por falta de credito na Comtele do DONO) ---
+function criarPendente(userId, mensagem, enviados, restantes) {
+  db.prepare('INSERT INTO pendentes (user_id, mensagem, restantes, qtd, enviados) VALUES (?, ?, ?, ?, ?)')
+    .run(userId, String(mensagem || ''), JSON.stringify(restantes || []), (restantes || []).length, enviados || 0);
+}
+function listarPendentes() {
+  return db.prepare(`SELECT p.*, u.nome AS cliente, u.email FROM pendentes p
+    JOIN users u ON u.id = p.user_id ORDER BY p.id DESC`).all();
+}
+function buscarPendente(id) {
+  return db.prepare('SELECT * FROM pendentes WHERE id = ?').get(id);
+}
+function apagarPendente(id) {
+  db.prepare('DELETE FROM pendentes WHERE id = ?').run(id);
+}
+
 // Apaga o cliente e o historico dele
 function apagarUsuario(userId) {
   try {
@@ -192,6 +217,7 @@ function apagarUsuario(userId) {
     db.prepare('DELETE FROM envios WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM contatos WHERE grupo_id IN (SELECT id FROM grupos WHERE user_id = ?)').run(userId);
     db.prepare('DELETE FROM grupos WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM pendentes WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
     db.exec('COMMIT');
     return { ok: true };
@@ -206,4 +232,5 @@ module.exports = {
   totalGasto, apagarUsuario,
   registrarEnvio, numerosNomesDoUsuario, todosNumerosNomes,
   criarGrupo, addContatos, listarGrupos, buscarGrupo, contatosDoGrupo, apagarGrupo,
+  criarPendente, listarPendentes, buscarPendente, apagarPendente,
 };

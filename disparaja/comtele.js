@@ -28,7 +28,9 @@ async function enviarSMS(numero, conteudo, custom = '') {
   try { data = await resp.json(); } catch (e) { data = {}; }
   const ok = resp.ok && data.hasError === false;
   const msg = ok ? 'ok' : (data.message || (Array.isArray(data.errors) && data.errors.join('; ')) || ('HTTP ' + resp.status));
-  return { ok, msg };
+  // semSaldo = a conta do DONO ficou sem credito na Comtele (problema do dono, nao do numero)
+  const semSaldo = !ok && /insuficiente|cr[eé]dito|sem saldo/i.test(msg);
+  return { ok, msg, semSaldo };
 }
 
 // Relatorio de mensagens enviadas (com status de entrega) da conta Comtele.
