@@ -14,6 +14,7 @@ const disparoJobs = new Map();
 try { process.loadEnvFile(path.join(__dirname, '.env')); } catch (e) { /* sem .env: usa defaults */ }
 
 const app = express();
+app.set('trust proxy', 1); // roda atras do Nginx (HTTPS) no VPS
 const PORT = process.env.PORT || 4000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const MP_TOKEN = process.env.MP_ACCESS_TOKEN || '';
