@@ -105,6 +105,27 @@ app.get('/presencas.csv', (req, res) => {
 
 let broadcaster;
 let adTimer = null; // Controla o timer do anuncio L-Shape
+let disparoCancel = false; // botao "parar" do disparo de SMS
+
+// --- SMS via Comtele (https://docs.comtele.com.br) ---
+function soDigitos(t) { return String(t == null ? '' : t).replace(/\D/g, ''); }
+function comCodigoPais(t) { let d = soDigitos(t); if (d && !d.startsWith('55')) d = '55' + d; return d; }
+// Troca {nome} pelo primeiro nome (msg mais pessoal e curta pro SMS)
+function personaliza(msg, nome) {
+    const primeiro = String(nome || '').trim().split(/\s+/)[0] || '';
+    return String(msg || '').replace(/\{nome\}/gi, primeiro);
+}
+async function comteleSend(apiKey, sender, receivers, content) {
+    if (!apiKey) return { ok: false, data: { Message: 'Sem chave de API' } };
+    const resp = await fetch('https://sms.comtele.com.br/api/v2/send', {
+        method: 'POST',
+        headers: { 'auth-key': apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Sender: sender || '', Receivers: receivers, Content: content })
+    });
+    let data = {};
+    try { data = await resp.json(); } catch (e) { /* resposta sem JSON */ }
+    return { ok: resp.ok && data.Success !== false, data };
+}
 
 io.on('connection', (socket) => {
     socket.on('broadcaster', () => {
@@ -259,6 +280,54 @@ io.on('connection', (socket) => {
         if (adTimer) { clearTimeout(adTimer); adTimer = null; }
         io.emit('toggle-ads', false);
         console.log('📡 Anúncio interrompido manualmente.');
+    });
+
+    // --- DISPARO DE SMS (Comtele) ---
+    // Envia 1 SMS personalizado. A chave de API vem do painel (nao fica salva no servidor).
+    socket.on('sms-test', async (dados, cb) => {
+        try {
+            const r = await comteleSend(dados.apiKey, dados.sender, comCodigoPais(dados.numero), personaliza(dados.msg, dados.nome || 'Teste'));
+            if (cb) cb(r);
+        } catch (e) { if (cb) cb({ ok: false, data: { Message: e.message } }); }
+    });
+
+    // Cancela um disparo em andamento
+    socket.on('sms-cancelar', () => { disparoCancel = true; });
+
+    // Dispara pra lista inteira, devagar (throttle), mandando progresso ao vivo
+    socket.on('sms-disparar', async (dados) => {
+        disparoCancel = false;
+        const contatos = Array.isArray(dados.contatos) ? dados.contatos : [];
+        const total = contatos.length;
+        const espera = Math.max(200, parseInt(dados.delayMs, 10) || 600);
+        let ok = 0, fail = 0; const falhas = [];
+        console.log(`📨 Disparo SMS iniciado: ${total} contatos.`);
+        for (let i = 0; i < total; i++) {
+            if (disparoCancel) {
+                console.log('📨 Disparo cancelado pelo painel.');
+                socket.emit('sms-fim', { ok, fail, total, cancelado: true, falhas });
+                return;
+            }
+            const c = contatos[i];
+            let res;
+            try { res = await comteleSend(dados.apiKey, dados.sender, comCodigoPais(c.telefone), personaliza(dados.msg, c.nome)); }
+            catch (e) { res = { ok: false, data: { Message: e.message } }; }
+            if (res.ok) ok++;
+            else { fail++; falhas.push({ nome: c.nome, telefone: c.telefone, erro: (res.data && res.data.Message) || 'falha' }); }
+            socket.emit('sms-progresso', { i: i + 1, total, ok, fail, nome: c.nome, ultimoOk: !!res.ok });
+            if (i < total - 1) await new Promise(r => setTimeout(r, espera));
+        }
+        // Salva um CSV com as falhas (pra reenviar depois), em /disparos (fora do git)
+        try {
+            const dir = path.join(__dirname, 'disparos');
+            fs.mkdirSync(dir, { recursive: true });
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const linhas = [['Nome', 'Telefone', 'Erro']].concat(falhas.map(f => [f.nome, f.telefone, f.erro]));
+            const csv = linhas.map(cols => cols.map(c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+            fs.writeFileSync(path.join(dir, `falhas-${stamp}.csv`), '﻿' + csv);
+        } catch (e) { /* sem disco: ignora */ }
+        console.log(`📨 Disparo finalizado. Enviados: ${ok}, Falhas: ${fail}.`);
+        socket.emit('sms-fim', { ok, fail, total, cancelado: false, falhas });
     });
 
     socket.on('disconnect', () => {

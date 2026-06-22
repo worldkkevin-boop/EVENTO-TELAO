@@ -4,6 +4,9 @@ certs/
 boot.log
 boot.err
 
+# Logs de disparo (contem telefones de pessoas - nao sobe pro GitHub)
+disparos/
+
 # Videos pesados ficam locais (GitHub rejeita > 100MB). So o LEIA-ME vai pro repo.
 public/videos/*
 !public/videos/LEIA-ME.txt
