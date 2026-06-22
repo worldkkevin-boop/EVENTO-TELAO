@@ -95,10 +95,35 @@ app.get('/', (req, res) => {
     </div>
     <div class="acoes">
       <a class="btn azul" href="/planos">💳 Comprar créditos</a>
-      <a class="btn cinza" href="/disparar">📨 Disparar SMS (em breve)</a>
+      <a class="btn cinza" href="/disparar">📨 Disparar SMS</a>
     </div>
+
+    <div class="card" style="display:block; margin:22px 0">
+      <h2 style="margin-top:0">🎁 Teste grátis</h2>
+      <p class="hint" style="margin-bottom:12px">Manda um SMS de teste pro <b>seu próprio número</b> agora e veja chegar no celular. Usa só ${reais(user.preco_sms)} do seu saldo.</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap">
+        <input id="numTeste" placeholder="Seu número com DDD (ex: 96991767788)" style="flex:1; min-width:220px">
+        <button class="btn azul" onclick="enviarTeste()">📲 Enviar SMS de teste</button>
+      </div>
+      <p id="resTeste" class="hint"></p>
+    </div>
+
     <h2>Histórico</h2>
     <table><thead><tr><th>Quando</th><th>Descrição</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table>
+    <script>
+      async function enviarTeste(){
+        const numero = document.getElementById('numTeste').value.replace(/\\D/g,'');
+        if(numero.length < 10) return alert('Digite seu número com DDD.');
+        const res = document.getElementById('resTeste');
+        res.innerText = 'Enviando...';
+        try{
+          const r = await fetch('/api/teste',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({numero})});
+          const j = await r.json();
+          res.innerHTML = j.ok ? '✅ Enviado! Olha teu celular. Novo saldo: <b>'+j.saldo+'</b>' : '❌ '+j.erro;
+          if(j.ok) setTimeout(()=>location.reload(), 2000);
+        }catch(e){ res.innerText = '❌ Erro: '+e.message; }
+      }
+    </script>
   `, user));
 });
 
@@ -344,6 +369,19 @@ app.get('/api/disparo-status', requireLogin, (req, res) => {
   res.json({ total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou });
 });
 
+// Envia 1 SMS de teste pro proprio numero do cliente (desconta 1 SMS do saldo)
+app.post('/api/teste', requireLogin, async (req, res) => {
+  const numero = String(req.body.numero || '').replace(/\D/g, '');
+  if (numero.length < 10) return res.json({ ok: false, erro: 'Número inválido (use DDD).' });
+  const preco = req.user.preco_sms;
+  if (req.user.saldo < preco) return res.json({ ok: false, erro: 'Sem saldo. Compre créditos pra testar.' });
+  const msg = 'DisparaJa: seu sistema de SMS esta funcionando! Responda SAIR para nao receber.';
+  const r = await comtele.enviarSMS(numero, msg);
+  if (!r.ok) return res.json({ ok: false, erro: 'Não consegui enviar agora (' + r.msg + ').' });
+  dao.debitar(req.user.id, preco, 'SMS de teste para ' + numero);
+  res.json({ ok: true, saldo: reais(dao.buscarPorId(req.user.id).saldo) });
+});
+
 // --- ADMIN (você): clientes, saldo, preço ---
 const centavosDe = s => Math.round(parseFloat(String(s).replace(',', '.')) * 100) || 0;
 
@@ -435,6 +473,9 @@ app.post('/cadastro', (req, res) => {
     return res.redirect('/cadastro?erro=' + encodeURIComponent('Esse e-mail já tem conta. Faça login.'));
   try {
     const u = dao.criarUsuario({ nome, email, senha });
+    // Bonus de boas-vindas pra testar (padrao R$1,00). Some quando manda o teste.
+    const bonus = parseInt(process.env.BONUS_CADASTRO_CENTAVOS || '100', 10);
+    if (bonus > 0) dao.recarregar(u.id, bonus, 'Bônus de teste (boas-vindas)');
     req.session.userId = u.id;
     res.redirect('/');
   } catch (e) {
