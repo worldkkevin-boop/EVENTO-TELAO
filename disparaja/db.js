@@ -100,8 +100,20 @@ function listarTransacoes(userId, limite = 50) {
   return db.prepare('SELECT * FROM transacoes WHERE user_id = ? ORDER BY id DESC LIMIT ?').all(userId, limite);
 }
 
+// --- admin ---
+function listarUsuarios() {
+  return db.prepare('SELECT id, nome, email, saldo, preco_sms, is_admin, criado_em FROM users ORDER BY id DESC').all();
+}
+function definirPreco(userId, centavos) {
+  db.prepare('UPDATE users SET preco_sms = ? WHERE id = ?').run(centavos, userId);
+}
+function tornarAdmin(email) {
+  db.prepare('UPDATE users SET is_admin = 1 WHERE email = ?').run(String(email).toLowerCase().trim());
+}
+
 module.exports = {
   db, hashSenha, conferirSenha,
   criarUsuario, buscarPorEmail, buscarPorId,
   recarregar, debitar, listarTransacoes,
+  listarUsuarios, definirPreco, tornarAdmin,
 };

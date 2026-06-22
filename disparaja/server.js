@@ -40,17 +40,28 @@ const PLANOS = [
 
 // --- helpers ---
 const reais = c => 'R$ ' + (c / 100).toFixed(2).replace('.', ',');
+function ehAdmin(user) {
+  if (!user) return false;
+  const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  return user.is_admin === 1 || (adminEmail && user.email === adminEmail);
+}
 function requireLogin(req, res, next) {
   if (!req.session.userId) return res.redirect('/login');
   req.user = dao.buscarPorId(req.session.userId);
   if (!req.user) { req.session.destroy(() => {}); return res.redirect('/login'); }
   next();
 }
+function requireAdmin(req, res, next) {
+  requireLogin(req, res, () => {
+    if (!ehAdmin(req.user)) return res.status(403).send('Acesso restrito.');
+    next();
+  });
+}
 
 // --- layout base (HTML compartilhado) ---
 function layout(title, body, user) {
   const nav = user
-    ? `<a href="/">Painel</a><a href="/planos">Comprar créditos</a><a href="/sair">Sair</a>`
+    ? `<a href="/">Painel</a><a href="/planos">Comprar créditos</a>${ehAdmin(user) ? '<a href="/admin">👑 Admin</a>' : ''}<a href="/sair">Sair</a>`
     : `<a href="/login">Entrar</a><a href="/cadastro">Criar conta</a>`;
   return `<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -329,6 +340,53 @@ app.get('/api/disparo-status', requireLogin, (req, res) => {
   const job = disparoJobs.get(req.query.id);
   if (!job || job.userId !== req.user.id) return res.json({ terminado: true, total: 0, enviados: 0, fail: 0 });
   res.json({ total: job.total, enviados: job.enviados, fail: job.fail, terminado: job.terminado, parou: job.parou });
+});
+
+// --- ADMIN (você): clientes, saldo, preço ---
+const centavosDe = s => Math.round(parseFloat(String(s).replace(',', '.')) * 100) || 0;
+
+app.get('/admin', requireAdmin, (req, res) => {
+  const users = dao.listarUsuarios();
+  const linhas = users.map(u => `<tr>
+    <td>${u.id}</td>
+    <td>${u.nome}<br><span class="hint">${u.email}</span>${ehAdmin(u) ? ' 👑' : ''}</td>
+    <td><b>${reais(u.saldo)}</b></td>
+    <td>${reais(u.preco_sms)}</td>
+    <td>
+      <form method="POST" action="/admin/creditar" class="inline">
+        <input type="hidden" name="userId" value="${u.id}">
+        <input name="valor" placeholder="R$" style="width:70px">
+        <button class="btn azul mini">+ saldo</button>
+      </form>
+      <form method="POST" action="/admin/preco" class="inline">
+        <input type="hidden" name="userId" value="${u.id}">
+        <input name="preco" placeholder="${(u.preco_sms/100).toFixed(2)}" style="width:60px">
+        <button class="btn cinza mini">preço</button>
+      </form>
+    </td></tr>`).join('');
+  res.send(layout('Admin', `
+    <h1>👑 Admin</h1>
+    <p class="sub">Seu custo na Comtele: R$ 0,10/SMS. Cada cliente paga o "preço por SMS" abaixo — a diferença é sua margem.</p>
+    ${req.query.ok ? `<p class="hint" style="color:#4ade80">✅ ${req.query.ok}</p>` : ''}
+    <table><thead><tr><th>#</th><th>Cliente</th><th>Saldo</th><th>Preço/SMS</th><th>Ações</th></tr></thead>
+    <tbody>${linhas}</tbody></table>
+    <style>.inline{display:inline-block;margin:2px}.btn.mini{padding:6px 10px;font-size:.8rem}
+    .inline input{padding:6px;border:1px solid #475569;border-radius:6px;background:var(--bg);color:var(--txt)}</style>
+  `, req.user));
+});
+
+app.post('/admin/creditar', requireAdmin, (req, res) => {
+  const userId = Number(req.body.userId);
+  const centavos = centavosDe(req.body.valor);
+  if (userId && centavos > 0) dao.recarregar(userId, centavos, 'Crédito manual (admin)');
+  res.redirect('/admin?ok=' + encodeURIComponent('Saldo de ' + reais(centavos) + ' adicionado.'));
+});
+
+app.post('/admin/preco', requireAdmin, (req, res) => {
+  const userId = Number(req.body.userId);
+  const centavos = centavosDe(req.body.preco);
+  if (userId && centavos > 0) dao.definirPreco(userId, centavos);
+  res.redirect('/admin?ok=' + encodeURIComponent('Preço por SMS atualizado.'));
 });
 
 // --- CADASTRO ---
