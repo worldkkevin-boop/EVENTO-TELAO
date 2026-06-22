@@ -6,6 +6,22 @@ const session = require('express-session');
 const path = require('node:path');
 const dao = require('./db');
 const comtele = require('./comtele');
+const whatsapp = require('./whatsapp');
+
+// --- Canais de envio (SMS hoje; WhatsApp encaixavel via whatsapp.js) ---
+const CANAIS = {
+  sms:      { nome: 'SMS', emoji: '📱' },
+  whatsapp: { nome: 'WhatsApp', emoji: '💬' },
+};
+function canalValido(c) { return c === 'whatsapp' ? 'whatsapp' : 'sms'; }
+// Preco (centavos) que o cliente paga por mensagem, por canal.
+function precoCanal(user, canal) { return canal === 'whatsapp' ? (user.preco_wa || 35) : user.preco_sms; }
+// Despacha o envio pro canal certo. Ambos retornam { ok, msg, semSaldo }.
+function enviarCanal(canal, numero, conteudo, custom) {
+  return canal === 'whatsapp'
+    ? whatsapp.enviarWhatsApp(numero, conteudo, custom)
+    : comtele.enviarSMS(numero, conteudo, custom);
+}
 
 // Jobs de disparo em andamento (em memoria): jobId -> progresso
 const disparoJobs = new Map();
@@ -278,11 +294,26 @@ app.get('/disparar', requireLogin, (req, res) => {
   const grupos = dao.listarGrupos(req.user.id);
   const grupoPre = String(req.query.grupo || '');
   const opcoes = grupos.map(g => `<option value="${g.id}"${String(g.id) === grupoPre ? ' selected' : ''}>${g.nome} (${g.total})</option>`).join('');
+  const waAtivo = whatsapp.ativo();
+  const precoWa = req.user.preco_wa || 35;
   res.send(layout('Disparar', `
-    <h1>Disparar SMS</h1>
-    <p class="sub">Saldo: <b>${reais(req.user.saldo)}</b> • Cada SMS custa <b>${reais(req.user.preco_sms)}</b> do seu saldo.</p>
+    <h1>Disparar mensagem</h1>
+    <p class="sub">Saldo: <b>${reais(req.user.saldo)}</b> • Escolha o canal abaixo — o preço por mensagem muda conforme o canal.</p>
     <div class="card" style="display:block">
-      <label>1. Lista de contatos</label>
+      <label>1. Canal de envio</label>
+      <div class="canais">
+        <label class="canalop sel" id="opSms">
+          <input type="radio" name="canal" value="sms" checked onchange="trocarCanal('sms')">
+          <b>📱 SMS</b><span>${reais(req.user.preco_sms)} / msg</span>
+        </label>
+        <label class="canalop${waAtivo ? '' : ' off'}" id="opWa">
+          <input type="radio" name="canal" value="whatsapp" ${waAtivo ? '' : 'disabled'} onchange="trocarCanal('whatsapp')">
+          <b>💬 WhatsApp</b><span>${waAtivo ? reais(precoWa) + ' / msg' : 'em ativação'}</span>
+        </label>
+      </div>
+      <p id="waHint" class="hint" style="display:none">💬 No WhatsApp oficial, a 1ª mensagem precisa ser de um <b>modelo aprovado pelo Meta</b>. Os modelos aparecem aqui assim que sua conta for liberada.</p>
+
+      <label style="margin-top:14px">2. Lista de contatos</label>
       <select id="grupoSel" onchange="carregarGrupo()" style="margin-bottom:10px">
         <option value="">— escolher um grupo salvo —</option>
         ${opcoes}
@@ -293,7 +324,7 @@ app.get('/disparar', requireLogin, (req, res) => {
       <textarea id="colar" rows="3" placeholder="Cole números separados por vírgula ou um por linha (ex: 11999998888, 11988887777)"></textarea>
       <p id="resumoLista" class="hint"></p>
 
-      <label style="margin-top:14px">2. Mensagem (use {nome} pra personalizar) — <a href="#" onclick="usarModelo();return false">📝 usar modelo</a></label>
+      <label style="margin-top:14px">3. Mensagem (use {nome} pra personalizar) — <a href="#" onclick="usarModelo();return false">📝 usar modelo</a></label>
       <textarea id="msg" rows="4" oninput="contar()" placeholder="Olá {nome}! Aqui é da [sua empresa]. (seu aviso aqui). Não precisa responder."></textarea>
       <p class="hint"><span id="cChars">0</span> caracteres • <span id="cCusto">R$ 0,00</span> estimado</p>
       <p class="hint">💡 Dica: diga <b>quem é</b> logo no início e <b>não peça resposta</b> — assim quase ninguém responde (você gasta menos). O <i>"SAIR p/ sair"</i> discreto já cobre o descadastro.</p>
@@ -318,9 +349,26 @@ app.get('/disparar', requireLogin, (req, res) => {
       .barra{height:14px;background:#0b1220;border-radius:8px;overflow:hidden;border:1px solid var(--linha)}
       .barra>div{height:100%;width:0;background:var(--ok);transition:width .3s}
       .escondido{display:none}
+      .canais{display:flex;gap:10px;flex-wrap:wrap;margin:4px 0 2px}
+      .canalop{flex:1;min-width:150px;display:flex;flex-direction:column;gap:2px;cursor:pointer;
+        border:1.5px solid var(--linha);border-radius:12px;padding:12px 14px;background:var(--bg);transition:.15s}
+      .canalop input{width:auto;margin:0 0 4px}
+      .canalop b{font-size:1rem}
+      .canalop span{font-size:.8rem;color:var(--mut)}
+      .canalop.sel{border-color:var(--azul);box-shadow:0 0 0 2px rgba(37,99,235,.25)}
+      .canalop.off{opacity:.55;cursor:not-allowed}
     </style>
     <script>
-      const PRECO = ${req.user.preco_sms};
+      const PRECOS = { sms: ${req.user.preco_sms}, whatsapp: ${precoWa} };
+      let canalAtual = 'sms';
+      let PRECO = PRECOS.sms;
+      function trocarCanal(c){
+        canalAtual = c; PRECO = PRECOS[c];
+        document.getElementById('opSms').classList.toggle('sel', c==='sms');
+        document.getElementById('opWa').classList.toggle('sel', c==='whatsapp');
+        document.getElementById('waHint').style.display = c==='whatsapp' ? 'block' : 'none';
+        contar();
+      }
       let contatos = [];
       function fmt(c){return 'R$ '+(c/100).toFixed(2).replace('.',',');}
       function parseCSV(t){t=t.replace(/^\\uFEFF/,'');return t.split(/\\r?\\n/).map(l=>l.split(',').map(x=>x.replace(/^"|"$/g,'').trim())).filter(r=>r.some(x=>x!==''));}
@@ -407,7 +455,7 @@ app.get('/disparar', requireLogin, (req, res) => {
         if(!confirm('Disparar para '+contatos.length+' contatos?\\nCusto: '+fmt(contatos.length*PRECO)+' do seu saldo.')) return;
         document.getElementById('btnEnviar').disabled = true;
         document.getElementById('resultado').innerText = '';
-        const r = await fetch('/api/disparar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contatos,mensagem:msg})});
+        const r = await fetch('/api/disparar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contatos,mensagem:msg,canal:canalAtual})});
         const j = await r.json();
         if(!j.ok){ document.getElementById('resultado').innerHTML='❌ '+j.erro; document.getElementById('btnEnviar').disabled=false; return; }
         acompanhar(j.jobId);
@@ -428,27 +476,29 @@ app.get('/disparar', requireLogin, (req, res) => {
 });
 
 // Inicia um disparo em background. Guarda os "restantes" se parar (ex: saldo) pra poder RETOMAR.
-function iniciarDisparo(userId, contatos, mensagem) {
+function iniciarDisparo(userId, contatos, mensagem, canal) {
+  canal = canalValido(canal);
+  const labelCanal = (CANAIS[canal] || CANAIS.sms).nome;
   const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const job = { userId, total: contatos.length, enviados: 0, fail: 0, terminado: false, parou: null, restantes: [], mensagem };
+  const job = { userId, total: contatos.length, enviados: 0, fail: 0, terminado: false, parou: null, restantes: [], mensagem, canal };
   disparoJobs.set(jobId, job);
   jobAtualPorUser.set(userId, jobId);
   (async () => {
     for (let i = 0; i < contatos.length; i++) {
       const c = contatos[i];
       const u = dao.buscarPorId(userId);
-      const preco = u ? u.preco_sms : Infinity;
+      const preco = u ? precoCanal(u, canal) : Infinity;
       if (!u || u.saldo < preco) { job.parou = 'saldo'; job.restantes = contatos.slice(i); break; }
-      const r = await comtele.enviarSMS(c.telefone, comtele.personaliza(mensagem, c.nome), 'u' + userId);
+      const r = await enviarCanal(canal, c.telefone, comtele.personaliza(mensagem, c.nome), 'u' + userId);
       if (r.ok) {
-        dao.debitar(userId, preco, 'SMS para ' + c.telefone);
-        dao.registrarEnvio(userId, c.nome, comtele.foneComtele(c.telefone));
+        dao.debitar(userId, preco, labelCanal + ' para ' + c.telefone);
+        dao.registrarEnvio(userId, c.nome, comtele.foneComtele(c.telefone), canal);
         job.enviados++;
       } else if (r.semSaldo) {
-        // Comtele do DONO sem credito: PAUSA (problema do dono). Cliente nao ve erro; vai pro admin.
+        // Estoque do DONO sem credito: PAUSA (problema do dono). Cliente nao ve erro; vai pro admin.
         job.parou = 'comtele';
         job.restantes = contatos.slice(i);
-        dao.criarPendente(userId, mensagem, job.enviados, contatos.slice(i));
+        dao.criarPendente(userId, mensagem, job.enviados, contatos.slice(i), canal);
         break;
       } else {
         job.fail++; // falha real do numero (numero ruim etc.)
@@ -464,10 +514,12 @@ function iniciarDisparo(userId, contatos, mensagem) {
 app.post('/api/disparar', requireLogin, (req, res) => {
   const contatos = Array.isArray(req.body.contatos) ? req.body.contatos : [];
   const mensagem = String(req.body.mensagem || '').trim();
+  const canal = canalValido(req.body.canal);
   if (!contatos.length) return res.json({ ok: false, erro: 'Lista vazia.' });
   if (!mensagem) return res.json({ ok: false, erro: 'Mensagem vazia.' });
-  if (req.user.saldo < req.user.preco_sms) return res.json({ ok: false, erro: 'Saldo insuficiente. Compre créditos.' });
-  res.json({ ok: true, jobId: iniciarDisparo(req.user.id, contatos, mensagem) });
+  if (canal === 'whatsapp' && !whatsapp.ativo()) return res.json({ ok: false, erro: 'O canal WhatsApp ainda está em ativação. Use o SMS por enquanto.' });
+  if (req.user.saldo < precoCanal(req.user, canal)) return res.json({ ok: false, erro: 'Saldo insuficiente. Compre créditos.' });
+  res.json({ ok: true, jobId: iniciarDisparo(req.user.id, contatos, mensagem, canal) });
 });
 
 // Retoma um disparo que parou (ex: saldo acabou) — manda só os que faltaram
@@ -476,9 +528,9 @@ app.post('/api/disparo-retomar', requireLogin, (req, res) => {
   const job = jobId && disparoJobs.get(jobId);
   if (!job || job.userId !== req.user.id || !job.restantes || !job.restantes.length)
     return res.json({ ok: false, erro: 'Não há disparo pra retomar.' });
-  if (req.user.saldo < req.user.preco_sms)
+  if (req.user.saldo < precoCanal(req.user, job.canal))
     return res.json({ ok: false, erro: 'Saldo ainda insuficiente. Adicione créditos primeiro.' });
-  res.json({ ok: true, jobId: iniciarDisparo(req.user.id, job.restantes, job.mensagem) });
+  res.json({ ok: true, jobId: iniciarDisparo(req.user.id, job.restantes, job.mensagem, job.canal) });
 });
 
 function statusJob(job) {
@@ -729,7 +781,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
     <td>${u.nome}<br><span class="hint">${u.email}</span>${ehAdmin(u) ? ' 👑' : ''}</td>
     <td><b>${reais(u.saldo)}</b></td>
     <td>${reais(dao.totalGasto(u.id))}</td>
-    <td>${reais(u.preco_sms)}</td>
+    <td>${reais(u.preco_sms)} <span class="hint">SMS</span><br>${reais(u.preco_wa || 35)} <span class="hint">WA</span></td>
     <td>
       <form method="POST" action="/admin/creditar" class="inline">
         <input type="hidden" name="userId" value="${u.id}">
@@ -739,7 +791,12 @@ app.get('/admin', requireAdmin, async (req, res) => {
       <form method="POST" action="/admin/preco" class="inline">
         <input type="hidden" name="userId" value="${u.id}">
         <input name="preco" placeholder="${(u.preco_sms/100).toFixed(2)}" style="width:60px">
-        <button class="btn cinza mini">preço</button>
+        <button class="btn cinza mini">SMS</button>
+      </form>
+      <form method="POST" action="/admin/preco-wa" class="inline">
+        <input type="hidden" name="userId" value="${u.id}">
+        <input name="preco" placeholder="${((u.preco_wa||35)/100).toFixed(2)}" style="width:60px">
+        <button class="btn cinza mini">WA</button>
       </form>
       ${ehAdmin(u) ? '' : `<form method="POST" action="/admin/apagar" class="inline" onsubmit="return confirm('Apagar ${u.nome.replace(/[^a-zA-Z0-9 ]/g, '')} e todo o histórico? Não dá pra desfazer.')">
         <input type="hidden" name="userId" value="${u.id}">
@@ -758,7 +815,7 @@ app.get('/admin', requireAdmin, async (req, res) => {
     ${req.query.ok ? `<p class="hint" style="color:#4ade80">✅ ${req.query.ok}</p>` : ''}
     ${pendHtml}
     <h2>Clientes</h2>
-    <table><thead><tr><th>#</th><th>Cliente</th><th>Saldo</th><th>Gasto</th><th>Preço/SMS</th><th>Ações</th></tr></thead>
+    <table><thead><tr><th>#</th><th>Cliente</th><th>Saldo</th><th>Gasto</th><th>Preço/msg</th><th>Ações</th></tr></thead>
     <tbody>${linhas}</tbody></table>
     <style>.inline{display:inline-block;margin:2px}.btn.mini{padding:6px 10px;font-size:.8rem}
     .inline input{padding:6px;border:1px solid #475569;border-radius:6px;background:var(--bg);color:var(--txt)}</style>
@@ -779,6 +836,13 @@ app.post('/admin/preco', requireAdmin, (req, res) => {
   res.redirect('/admin?ok=' + encodeURIComponent('Preço por SMS atualizado.'));
 });
 
+app.post('/admin/preco-wa', requireAdmin, (req, res) => {
+  const userId = Number(req.body.userId);
+  const centavos = centavosDe(req.body.preco);
+  if (userId && centavos > 0) dao.definirPrecoWa(userId, centavos);
+  res.redirect('/admin?ok=' + encodeURIComponent('Preço por WhatsApp atualizado.'));
+});
+
 app.post('/admin/apagar', requireAdmin, (req, res) => {
   const userId = Number(req.body.userId);
   const alvo = dao.buscarPorId(userId);
@@ -792,7 +856,7 @@ app.post('/admin/retomar-pendente', requireAdmin, (req, res) => {
   const p = dao.buscarPendente(Number(req.body.id));
   if (p) {
     let restantes = []; try { restantes = JSON.parse(p.restantes); } catch (e) { /* json ruim */ }
-    if (restantes.length) iniciarDisparo(p.user_id, restantes, p.mensagem);
+    if (restantes.length) iniciarDisparo(p.user_id, restantes, p.mensagem, p.canal);
     dao.apagarPendente(p.id);
     return res.redirect('/admin?ok=' + encodeURIComponent('Disparo retomado! Mandando os ' + restantes.length + ' restantes.'));
   }

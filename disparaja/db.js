@@ -64,6 +64,12 @@ CREATE TABLE IF NOT EXISTS pendentes (
 );
 `);
 
+// --- Migracoes leves (colunas novas em bancos ja existentes). Ignora se ja existir. ---
+function migrar(sql) { try { db.exec(sql); } catch (e) { /* coluna ja existe */ } }
+migrar("ALTER TABLE users ADD COLUMN preco_wa INTEGER NOT NULL DEFAULT 35"); // centavos por WhatsApp
+migrar("ALTER TABLE envios ADD COLUMN canal TEXT NOT NULL DEFAULT 'sms'");   // 'sms' | 'whatsapp'
+migrar("ALTER TABLE pendentes ADD COLUMN canal TEXT NOT NULL DEFAULT 'sms'");
+
 // --- senha (scrypt nativo, sem dependencia) ---
 function hashSenha(senha) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -135,10 +141,13 @@ function listarTransacoes(userId, limite = 50) {
 
 // --- admin ---
 function listarUsuarios() {
-  return db.prepare('SELECT id, nome, email, saldo, preco_sms, is_admin, criado_em FROM users ORDER BY id DESC').all();
+  return db.prepare('SELECT id, nome, email, saldo, preco_sms, preco_wa, is_admin, criado_em FROM users ORDER BY id DESC').all();
 }
 function definirPreco(userId, centavos) {
   db.prepare('UPDATE users SET preco_sms = ? WHERE id = ?').run(centavos, userId);
+}
+function definirPrecoWa(userId, centavos) {
+  db.prepare('UPDATE users SET preco_wa = ? WHERE id = ?').run(centavos, userId);
 }
 function tornarAdmin(email) {
   db.prepare('UPDATE users SET is_admin = 1 WHERE email = ?').run(String(email).toLowerCase().trim());
@@ -149,8 +158,9 @@ function totalGasto(userId) {
   return r ? r.gasto : 0;
 }
 // --- envios (pra cruzar com as respostas/SAIR e mostrar o nome) ---
-function registrarEnvio(userId, nome, numero) {
-  db.prepare('INSERT INTO envios (user_id, nome, numero) VALUES (?, ?, ?)').run(userId, String(nome || ''), String(numero));
+function registrarEnvio(userId, nome, numero, canal) {
+  db.prepare('INSERT INTO envios (user_id, nome, numero, canal) VALUES (?, ?, ?, ?)')
+    .run(userId, String(nome || ''), String(numero), String(canal || 'sms'));
 }
 // Mapa numero(so digitos) -> nome, dos contatos pra quem o cliente ja mandou
 function numerosNomesDoUsuario(userId) {
@@ -194,9 +204,9 @@ function apagarGrupo(grupoId) {
 }
 
 // --- disparos pendentes (pausados por falta de credito na Comtele do DONO) ---
-function criarPendente(userId, mensagem, enviados, restantes) {
-  db.prepare('INSERT INTO pendentes (user_id, mensagem, restantes, qtd, enviados) VALUES (?, ?, ?, ?, ?)')
-    .run(userId, String(mensagem || ''), JSON.stringify(restantes || []), (restantes || []).length, enviados || 0);
+function criarPendente(userId, mensagem, enviados, restantes, canal) {
+  db.prepare('INSERT INTO pendentes (user_id, mensagem, restantes, qtd, enviados, canal) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(userId, String(mensagem || ''), JSON.stringify(restantes || []), (restantes || []).length, enviados || 0, String(canal || 'sms'));
 }
 function listarPendentes() {
   return db.prepare(`SELECT p.*, u.nome AS cliente, u.email FROM pendentes p
@@ -228,7 +238,7 @@ module.exports = {
   db, hashSenha, conferirSenha,
   criarUsuario, buscarPorEmail, buscarPorId,
   recarregar, debitar, listarTransacoes,
-  listarUsuarios, definirPreco, tornarAdmin,
+  listarUsuarios, definirPreco, definirPrecoWa, tornarAdmin,
   totalGasto, apagarUsuario,
   registrarEnvio, numerosNomesDoUsuario, todosNumerosNomes,
   criarGrupo, addContatos, listarGrupos, buscarGrupo, contatosDoGrupo, apagarGrupo,
